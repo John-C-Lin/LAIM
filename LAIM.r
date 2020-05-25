@@ -425,7 +425,7 @@ print(paste(filenm,"written out"))
 # generate movie of moisture content
 if (groundwaterTF) {
   theta <- theta_save <- rbind(theta_save,theta_s[2:length(theta_s[,1]),])
-  X11()
+  dev.new()
   j <- count
   for (i in 1:j) {
 	  real_time <- (dt*i)/(3600*24) # time in day fractions
@@ -451,7 +451,7 @@ esat <- result[,"qstar"]*Psurf*(Rv/Rd)  # saturation vapor pressure [hPa]
 VPD <- 100*(esat-e)                     # vapor pressure deficit [Pa]
 
 #--------generate 4 different plots in one window, with 2*2 configuration---------#
-X11(); par(mfrow=c(2,2),cex.main=0.7)   
+dev.new(); par(mfrow=c(2,2),cex.main=0.7)   
 ylims <- range(result[,c("T","Ta")]-273.15)
 plot(result[,"time"]/3600,result[,"T"]-273.15,type="l",xlab="Time [hour]",ylab="Temperature [deg-C]",
      cex.axis=1.3,cex.lab=1.3,lwd=2,ylim=ylims,main=xmain)
@@ -475,7 +475,7 @@ legend(x="topright",c("raero","rveg"),lwd=2,lty=c(1),col=c("yellow","lightgreen"
 dev.copy(png,"T_q_r_VPD.png");dev.off()
 
 
-X11()
+dev.new()
 matplot(result[,"time"]/3600,result[,c("Rnet","LWup","H","LE","G")],type="l",lty=c(1,2,1,1,1),
         cex.axis=1.5,cex.lab=1.5,col=c("black","black","orange","blue","darkgreen"),lwd=2,xlab="Time [hr]",ylab="Energy Fluxes [W/m2]")
 legend(x="topright",c("Rnet","LWup","H","LE","G"),col=c("black","black","orange","blue","darkgreen"),lwd=2,lty=c(1,2,1,1,1))
@@ -483,17 +483,17 @@ title(main=xmain)
 dev.copy(png,"Energyfluxes.png",pointsize = 30, width = 1800, height = 1200);dev.off()
 
 if (atmrespondTF) {
-  X11()
+  dev.new()
   plot(result[,"time"]/3600,result[,"h"],type="l",xlab="Time [hour]",ylab="ABL height [m]",
        cex.axis=1.3,cex.lab=1.3,lwd=2,main=xmain)
   dev.copy(png,"ABLht.png");dev.off()
 } #if(atmrespondTF){
 
 if(groundwaterTF){
-  X11()
+  dev.new()
   qr <- result[,"qair"]/result[,"qstar"]
   plot(result[,"time"]/3600,qr,xlab="Time [hour]",ylab="qair/qstar",cex.axis=1.3,cex.lab=1.3,lwd=2,main=xmain)
 
-  X11()
+  dev.new()
   plot(result[,"time"]/3600,result[,"srce"],xlab="Time [hour]",ylab="Infil - Evap",cex.axis=1.3,cex.lab=1.3,lwd=2,main=xmain)
 } #if(groundwaterTF){
