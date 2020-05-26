@@ -1,47 +1,50 @@
 # Land-Atmosphere Interactions Model (LAIM) 
 # By John C. Lin (John.Lin@utah.edu)
 
-# --------------Functions-----------------#
-latentheat <- function(T.c){
-# Takes temperature [C] and returns value of latent heat of vaporization [J/g]
-  lambda <- 2.501 - 0.0024 * T.c
-  return(lambda * 1000)
-} #latentheat<-function(T.c){
-satvap <- function(T.c){
-# Takes temp in Celsius as argument and returns saturation vapor pressure [Pa]
-# NOTE:  calls upon function 'latentheat'
-# 3/19/1998
-  kelvin <- T.c+273.15
-  #return value in [J/g], so multiply by 1000 to convert into [J/kg]
-  lambda <- 1000*latentheat(T.c)
-  #461 is Gas Constant for water vapor [J deg-1 kg-1]
-  #611 & 273.15 are reference vapor pressure and reference temp., respectively
-  saturated <- 611*exp((lambda/461)*((1/273.15)-(1/kelvin)))
-  return(saturated)
-} #satvap<-function(T.c){
-# --------------Physical constants--------#
-Cp <- 1005.7;Cv <- 719 # heat capacities @ constant pressure & volume [J/kg/K] (Appendix 2 of Emanuel [1994])
-g <- 9.80665 # standard surface gravity [m/s2]
-Rd <- 287.04 # Ideal Gas Constant of DRY air [J/kg/K] (Appendix 2 of Emanuel [1994])
-Rv <- 461.40 # Ideal Gas Constant of water vapor [J/kg/K] (Appendix A.1.4 of Jacobson [1999])
-sigma <- 5.670373E-8    # Stefan-Boltzmann constant [W/m2/K4]
-##########################################
-vegcontrolTF <- FALSE    # vegetation control?
-atmrespondTF <- TRUE     # does atmosphere respond to surface fluxes?
-ABLTF<- FALSE            # does ABL growth or decay, according to surface heat fluxes?
-groundwaterTF <- TRUE    #does the groundwater respond to the atmosphere?
-cloudTF <- TRUE          #cloud physics response to relative humidity
 
+#################################################
+# Flags to Turn On/Off Processes 
+vegcontrolTF <- TRUE    # vegetation control?
+atmrespondTF <- TRUE     # does atmosphere respond to surface fluxes?
+ABLTF<- TRUE            # does ABL growth or decay, according to surface heat fluxes?
+groundwaterTF <- FALSE   #does the groundwater respond to the atmosphere?
+cloudTF <- TRUE          #cloud physics response to relative humidity
+#################################################
+
+#################################################
+# Model timestep and duration
+dt <- 60           # model timestep [s]
+t.day <- 3         # run time in days
+tmax <- t.day*24*3600  #maximum time [s]
+#################################################
+
+#################################################
 # Land surface characteristics
 gvmax <- 1/50      # max vegetation conductance [m/s]; reciprocal of vegetation resistance
 albedo.c <- 0.1    # surface albedo
 albedo <- albedo.c # surface albedo
 z0 <- 0.5          # roughness length [m]
 epsilon.s <- 0.97  # surface emissivity for forest, according to Jin & Liang [2006]
-dt <- 60           # model timestep [s]
-t.day <- 3         # run time in days
-tmax <- t.day*24*3600  #maximum time [s]
+# heat capacity of land surface
+#D<-0.1*(dt/tmax)      # the depth of soil that temp fluctuations would penetrate [m]; 0.1m is roughly the depth that would penetrate on diurnal timescales
+#D<-0.1
+D <- 0.1*(1/24)          # the depth of soil that temp fluctuations would penetrate [m]; 0.1m is roughly the depth that would penetrate on diurnal timescales
+Cp.soil <- 1921          # specific heat of soil organic material [J/kg/K]
+rho.soil <- 1300         # density of soil organic material [kg/m3]
+Cs <- Cp.soil*rho.soil*D # heat capacity of organic soil [J/K/m2]
+#################################################
 
+#################################################
+# Physical constants
+Cp <- 1005.7;Cv <- 719 # heat capacities @ constant pressure & volume [J/kg/K] (Appendix 2 of Emanuel [1994])
+g <- 9.80665 # standard surface gravity [m/s2]
+Rd <- 287.04 # Ideal Gas Constant of DRY air [J/kg/K] (Appendix 2 of Emanuel [1994])
+Rv <- 461.40 # Ideal Gas Constant of water vapor [J/kg/K] (Appendix A.1.4 of Jacobson [1999])
+sigma <- 5.670373E-8    # Stefan-Boltzmann constant [W/m2/K4]
+#################################################
+
+#################################################
+# ---------- External forcing ------------------#
 # Downward shortwave radiation
 t.hr<-0:24
 # a) hourly varying
@@ -58,14 +61,6 @@ LWdn <- SWdn; LWdn[1:length(LWdn)] <- 350 # constant downward longwave radiation
 Ta.c<- -0.5*(t.hr-12)^2+30  # PRESCRIBED air temperature [deg-C]
 names(Ta.c) <- t.hr
 Ta.c[1:length(Ta.c)] <- 5    # override with CONSTANT air temperature [deg-C]
-
-# heat capacity of land surface
-#D<-0.1*(dt/tmax)      # the depth of soil that temp fluctuations would penetrate [m]; 0.1m is roughly the depth that would penetrate on diurnal timescales
-#D<-0.1
-D <- 0.1*(1/24)          # the depth of soil that temp fluctuations would penetrate [m]; 0.1m is roughly the depth that would penetrate on diurnal timescales
-Cp.soil <- 1921          # specific heat of soil organic material [J/kg/K]
-rho.soil <- 1300         # density of soil organic material [kg/m3]
-Cs <- Cp.soil*rho.soil*D # heat capacity of organic soil [J/K/m2]
 
 # specific humidity of air:  determine from RH, air temperature
 #qair<-2/1000      #specific humidity of air [g/g]
@@ -85,7 +80,28 @@ qabove <- qair/5  # specific humidity of air above ABL [g/g] changed from 5 to 1
 W <- 0            # subsidence rate [m/s]
 Ur <- 1           # reference windspeed [m/s] at reference height zr
 zr <- 50          # reference height [m] where Ur applies
-##########################################
+#################################################
+
+#################################################
+# --------------Functions-----------------#
+latentheat <- function(T.c){
+  # Takes temperature [C] and returns value of latent heat of vaporization [J/g]
+  lambda <- 2.501 - 0.0024 * T.c
+  return(lambda * 1000)
+} #latentheat<-function(T.c){
+
+satvap <- function(T.c){
+  # Takes temp in Celsius as argument and returns saturation vapor pressure [Pa]
+  # NOTE:  calls upon function 'latentheat'
+  # 3/19/1998
+  kelvin <- T.c+273.15
+  #return value in [J/g], so multiply by 1000 to convert into [J/kg]
+  lambda <- 1000*latentheat(T.c)
+  #461 is Gas Constant for water vapor [J deg-1 kg-1]
+  #611 & 273.15 are reference vapor pressure and reference temp., respectively
+  saturated <- 611*exp((lambda/461)*((1/273.15)-(1/kelvin)))
+  return(saturated)
+} #satvap<-function(T.c){
 
 # function to calculate vegetation resistance
 rv.f <- function(T,VPD,gvmax,Tmin.c=0,Tmax.c=60,Topt.c=30,VPDmin=1500,VPDmax=7500){
@@ -124,6 +140,7 @@ ra.f <- function(Ur=1,zr=50,z0=z0,d=0,rho=1){
   ra <- 1/(CD*Ur)                 # aerodynamic resistance [s/m]
   return(ra)
 } #ra.f<-function(){
+#################################################
 
 # initialize T with equilibrium value (determined through "uniroot")
 f<-function(T,Ta,SWdn,LWdn,albedo,epsilon.s,Ur,zr,z0,gvmax=gvmax){
@@ -450,7 +467,10 @@ e <- result[,"qair"]*Psurf/(Rd/Rv)      # vapor pressure [hPa]
 esat <- result[,"qstar"]*Psurf*(Rv/Rd)  # saturation vapor pressure [hPa]
 VPD <- 100*(esat-e)                     # vapor pressure deficit [Pa]
 
-#--------generate 4 different plots in one window, with 2*2 configuration---------#
+#################################################
+# -------------------- Plotting ----------------#
+
+# generate 4 different plots in one window, with 2*2 configuration
 dev.new(); par(mfrow=c(2,2),cex.main=0.7)   
 ylims <- range(result[,c("T","Ta")]-273.15)
 plot(result[,"time"]/3600,result[,"T"]-273.15,type="l",xlab="Time [hour]",ylab="Temperature [deg-C]",
@@ -474,7 +494,7 @@ lines(result[,"time"]/3600,result[,"rv"],lty=1,lwd=2,col="lightgreen")
 legend(x="topright",c("raero","rveg"),lwd=2,lty=c(1),col=c("yellow","lightgreen"))
 dev.copy(png,"T_q_r_VPD.png");dev.off()
 
-
+# plot with energy fluxes 
 dev.new()
 matplot(result[,"time"]/3600,result[,c("Rnet","LWup","H","LE","G")],type="l",lty=c(1,2,1,1,1),
         cex.axis=1.5,cex.lab=1.5,col=c("black","black","orange","blue","darkgreen"),lwd=2,xlab="Time [hr]",ylab="Energy Fluxes [W/m2]")
@@ -483,6 +503,7 @@ title(main=xmain)
 dev.copy(png,"Energyfluxes.png",pointsize = 30, width = 1800, height = 1200);dev.off()
 
 if (atmrespondTF) {
+  # plot with time series of ABL height 
   dev.new()
   plot(result[,"time"]/3600,result[,"h"],type="l",xlab="Time [hour]",ylab="ABL height [m]",
        cex.axis=1.3,cex.lab=1.3,lwd=2,main=xmain)
@@ -497,3 +518,4 @@ if(groundwaterTF){
   dev.new()
   plot(result[,"time"]/3600,result[,"srce"],xlab="Time [hour]",ylab="Infil - Evap",cex.axis=1.3,cex.lab=1.3,lwd=2,main=xmain)
 } #if(groundwaterTF){
+#################################################
