@@ -7,7 +7,6 @@
 vegcontrolTF <- TRUE    # vegetation control?
 atmrespondTF <- TRUE     # does atmosphere respond to surface fluxes?
 ABLTF<- TRUE            # does ABL growth or decay, according to surface heat fluxes?
-groundwaterTF <- FALSE   #does the groundwater respond to the atmosphere?
 cloudTF <- TRUE          #cloud physics response to relative humidity
 #################################################
 
@@ -210,55 +209,13 @@ thetaM <- Ta.c[1]+273.15
 qM <- qair   # initialize with prescribed specific humidity [g/g]
 thetavM <- thetaM*(1+0.61*qM)   # virtual potential temperature [K];  Eq. 1.5.1b of Stull [1988]
 countp <- 0
-
-dx <- 0.02  	# discretization (m)
-l <- 0.5   		# length of soil model (m)
-ttime <- t.day*3600*24   #time in seconds (s)
-#!!!! change 'k' to something else, since potential confusion with Von Karman constant !!!!
-k <- 1*10^-5	# Hydraulic conductivity, for GW model (m/s)
-d <- 7*10^-7	# Soil water diffusivity, for GW model (m^2/s) 
-count <- 0		# Loop Counter
-theta <- matrix(0,2,(l/dx))			# Initializing saturation of ground, varies from 0-1 (-)
-theta[1,1:(l/dx)] <- (1:(l/dx))/(4*l/dx)+0.5	# Model initial condition for saturation
-theta_s <- theta[1,]
-theta_save <- 0
-b <- 1:(l/dx)*0					# Used to Solve Ax=b
-theta_star <- b
-A <- 1:(l/dx)*0					
-B <- A
-C <- A
-G <- A
-bc_t <- 0					# Top boundary condition, not used
-bc_b <- 1					# Bottom boundary condition
-theta[,(l/dx)] <- bc_b
-real_time <- 0
-i <- 1
-infil <- 0
-evap <- b
-srce <- 0
-evap2 <- 0
-qstar <- qM
-f_c <- 0.8 # field capacity
-w_p <- 0.2 # wilting point
 tcc <- 0   # total cloud fraction
 while (tcurr<tmax) {
   countp <- countp+1
   if (countp>500) {
-	print(paste("-------- tcurr=",round(tcurr/(3600*24)*10)/10,"[days] --------"))
-  countp = 0
-  if (sum(theta_save)==0){
-      theta_save <- theta_s
-      theta_s <- 1:(l/dx)*0
-      result_save <- result_s
-      result_s <- NULL
-  } else {
-    if (groundwaterTF){
-		  theta_save <- rbind(theta_save,theta_s[2:length(theta_s[,1]),])
-      theta_s <- 1:(l/dx)*0}
-      result_save <- rbind(result_save,result_s)
-      result_s <- NULL
-    }
-  }
+    print(paste("-------- tcurr=",round(tcurr/(3600*24)*10)/10,"[days] --------"))
+    countp <- 0
+  } #if (countp>500)
   LWup <- epsilon.s*sigma*T^4   # upward longwave radiation [W/m2]
   LWdn.t <- approx(x=as.numeric(names(LWdn))*3600,y=LWdn,xout=tcurr%%(24*3600))$y  # downward shortwave radiation [W/m2]
   if (cloudTF) {
@@ -266,7 +223,7 @@ while (tcurr<tmax) {
 	  tcc <- min(exp((qM/qstar-1)/(1-RHe)),1) 	# Walcek 1994 model equation (1) 	
 	  LWdn.t<- LWup-100+80*(tcc)
 	  albedo <- albedo.c+0.75*(tcc)
-	}
+	} #if (cloudTF)
   SWdn.t <- approx(x=as.numeric(names(SWdn))*3600,y=SWdn,xout=tcurr%%(24*3600))$y  # downward shortwave radiation [W/m2]
   SWup <- albedo*SWdn.t
   # determine net radiation
@@ -312,40 +269,7 @@ while (tcurr<tmax) {
     ci <- NA
   } # if(vegcontrolTF){
   
-  if (groundwaterTF) {
-    PET <- (lambda*rho/(ra+rv))*(qstar-qa) #[W/m2] Calculates the potential energy rather. Not potential evapotranspiration.
-    ##################
-    #Raining Condtion#
-    ##################
-    if (qM>qstar) {
-		evap <- evap*0     		#Evaporation is 0 when raining
-		infil <- (qM-qstar)*h/(1000*dx)
-		qM <- qstar
-		qair <- qstar
-		qa  <- qstar
-    }
-    
-    #######################
-    #Evaporation Condition#
-    #######################
-    if (qM<qstar) {
-		infil <- 0 	#Rain/Infiltration is set to 0
-                ###################
-		#Evaporation Model#
-		################### 
-
-		sf_factor <- (1/(1:(l/dx)))        		 # scaling factor linear model set equal to 1 (-)
-		sf_factor[(l/dx-5):(l/dx)] <- 0				 # Moving evaporation away from influence of BC
-		sf_factor <- (sf_factor/sum(sf_factor)) # scaling factor linear model set equal to 1 (-)
-
-		av_theta <- ((theta[i,]-w_p)/(f_c-w_p))  # Available Mositure Content (-)
-		PET_frac <- ((PET/lambda*dt)/1000)/dx		 # PET represented as MC (-) 
-		evap <- sf_factor * av_theta * PET_frac	 # Evaporation represented as moisture content (-)
-    }
-    srce <- infil-sum(evap)    
-    LE  <- sum(evap)*(lambda/dt)*(dx*1000)  #[W/m2] 
-  } else {
-    LE <- (lambda*rho/(ra+rv))*(qstar-qa)} #[W/m2]
+    LE <- (lambda*rho/(ra+rv))*(qstar-qa) #[W/m2]
   
     # !!!! consider iterating until T converges, since rv depends on T itself (see pg. 198 of Bonan [2019]) !!!!
   
@@ -353,8 +277,8 @@ while (tcurr<tmax) {
     G <- Rnet-LE-H  
 
     # update temperature 
-    dT<-(G/Cs)*dt
-    T<-T+dT
+    dT <- (G/Cs)*dt
+    T <- T+dT
   
     # if want atmosphere to respond
     # Based on "zero-order jump" or "slab" model of convective boundary layer, described in Pg. 151~155 of Garratt [1992]
@@ -365,16 +289,16 @@ while (tcurr<tmax) {
       E <- LE/lambda   # surface moisture flux [g/m^2/s] 
       F0theta <- H/Cp  # potential heat flux [K-kg/m^2/s]
       F0thetav <- F0theta+0.073*lambda*E/Cp # virtual heat flux [K-kg/m^2/s]
-    if (ABLTF) {
-      Fhthetav <- -1*Beta*F0thetav   # closure hypothesis (Eq. 6.15 of Garratt [1992])
-      # calculate ABL growth rate
-      dh.dt<-(1+2*Beta)*F0thetav/(gamma*h)
-      if (F0thetav<=0.00) dh.dt <- 0 # ABL collapses
-    } else {
-      dh.dt <- 0
-      Fhthetav <- 0
-    } # if(ABLTF){
-      
+      if (ABLTF) {
+        Fhthetav <- -1*Beta*F0thetav   # closure hypothesis (Eq. 6.15 of Garratt [1992])
+        # calculate ABL growth rate
+        dh.dt<-(1+2*Beta)*F0thetav/(gamma*h)
+        if (F0thetav<=0.00) dh.dt <- 0 # ABL collapses
+      } else {
+        dh.dt <- 0
+        Fhthetav <- 0
+      } # if(ABLTF){
+    
     # calculate entrainment flux of humidity
     deltaq <- qabove - qM
     Fhq <- -1*rho*deltaq*(dh.dt-W)*1000  # entrainment flux of humidity [g/m2/s] NOTE:  assume CONSTANT air density!
@@ -390,108 +314,23 @@ while (tcurr<tmax) {
     if (F0thetav<=0.00&ABLTF) h<-hmin # override value:  ABL collapses
   } # if(atmrespondTF){
     
-  if (groundwaterTF) {
-	  theta[i,1] <- theta[i,2] # bc_t
-    theta[i,(l/dx)] <- bc_b  # theta[i,(l/dx-1)]
-    ############################
-    #Forward Euler (Predictor)
-    ############################
-		# evap <- evap*0
-		# infil <- infil*0
-		thetaf <- theta[i,3:(l/dx)]
-    thetan <- theta[i,2:(l/dx-1)]
-    thetab <- theta[i,1:(l/dx-2)]
-    theta_star[2:(l/dx-1)] <- theta[i,2:(l/dx-1)]+dt*(d/dx*(thetaf+thetan)/2*(thetaf-thetan)/dx-d/dx*(thetab+thetan)/2*(thetan-thetab)/dx-k*(thetaf-thetab)/(2*dx))
-    theta_star <- theta_star-evap
-		theta_star[2] <- theta_star[2]+infil 
-		theta_star[1] <- theta_star[2] 
-    theta_star[l/dx] <- bc_b
-
-    ###########################
-    #Crank-Nicolson
-    ###########################
-    theta_starf <- theta_star[3:(l/dx)]
-    theta_starn <- theta_star[2:(l/dx-1)]
-    theta_starb <- theta_star[1:(l/dx-2)]
-    theta_starph <- (theta_starf+theta_starn)/2
-    theta_starnh <- (theta_starn+theta_starb)/2
-
-    mu <- d*dt/(2*dx^2)
-    A <- -mu*theta_starnh - k*dt/(4*dx)
-    B <- 1 + mu*theta_starph + mu*theta_starnh  #+k*dt/(2*dx)
-    C <- -mu*theta_starph + k*dt/(4*dx)
-    GG <- -A*thetab+(2-B)*thetan-C*thetaf
-
-    a <- matrix(0,l/dx,l/dx)
-    diag(a[2:(l/dx-1),1:(l/dx)]) <- A
-    diag(a[2:(l/dx-1),2:(l/dx)]) <- B
-    diag(a[2:(l/dx-1),3:(l/dx)]) <- C
-    b[2:(l/dx-1)] <- GG
-
-    ############################
-    #Boundary Conditions
-    ############################
-    a[1,1] <- 1
-		b <- b-evap  
-		b[2] <- b[2]+infil
-    b[1] <- theta[i,2]+infil-evap[2]
-    a[(l/dx),(l/dx)] <- 1
-    b[l/dx] <- bc_b#b[l/dx-1]
-		a[(l/dx-1),(l/dx-1)] <- a[(l/dx-1),(l/dx-1)]+10^10
-		b[(l/dx-1)] <- 10^10*bc_b+b[(l/dx-1)]
-
-    theta[i+1,] <- solve(a,b)
-		theta[i+1,1] <- theta[i+1,2]#bc_t
-    theta[theta>1] <- 1
-		theta[i,(l/dx)] <- bc_b#theta[i,((l/dx)-1)]
-    count <- count+1
-    real_time <- (dt*i)/(3600*24) #time in day fractions
-    real_time <- round(real_time)
-		i <- 1
-		theta_s <- rbind(theta_s,theta[i+1,])
-		theta[i,] <- theta[i+1,]
-  } # if(groundwaterTF){
-  evap2 <- sum(evap)
   tmp <- c(tcurr,T,Ta,LWup,Rnet,H,LE,G,dT,qstar,qa,ra,rv,An,ci,h,qM,thetavM,thetaM)
-  if (groundwaterTF) tmp <- c(tcurr,T,Ta,LWup,Rnet,H,LE,G,dT,PET,qstar,qa,ra,rv,h,qM,thetavM,thetaM,infil,evap2,srce,LWdn.t,SWdn.t,SWup,F0thetav,tcc)
   result_s <- rbind(result_s,tmp)
-  tcurr <- tcurr+min(c(dt,tmax-tcurr))
+  tcurr <- tcurr + min(c(dt,tmax-tcurr))
+  print(paste("tcurr:",tcurr))
 } # while(tcurr<ttmax){
-result <- rbind(result_save,result_s)
 #---------------------------------------Time Loop END ------------------------------------------#
-
-if (groundwaterTF) {
-  dimnames(result) <- list(NULL,c("time","T","Ta","LWup","Rnet","H","LE","G","dT","PET","qstar","qair","ra","rv","h","qM","thetavM","thetaM","infil","evap","srce","LWdn","SWdn","SWup","F0","tcc"))
-} else {
-  dimnames(result) <- list(NULL,c("time","T","Ta","LWup","Rnet","H","LE","G","dT",
+result <- result_s
+dimnames(result) <- list(NULL,c("time","T","Ta","LWup","Rnet","H","LE","G","dT",
                               "qstar","qair","ra","rv","An","ci","h","qM","thetavM","thetaM"))
-} #if(groundwaterTF){
 filenm <- "result.csv"
 write.csv(result,file=filenm)
 print(paste(filenm,"written out"))
-
-# generate movie of moisture content
-if (groundwaterTF) {
-  theta <- theta_save <- rbind(theta_save,theta_s[2:length(theta_s[,1]),])
-  dev.new()
-  j <- count
-  for (i in 1:j) {
-	  real_time <- (dt*i)/(3600*24) # time in day fractions
-    real_time <- round(real_time)
-    if (count>10) {
-		  title_gr <- paste("Run Time ", real_time , " (days)")
-      plot(theta[i,2:(l/dx-1)],-(1:(l/dx-2))*dx, xlab = "Moisture Content (-)", ylab = "Depth Below Surface (m)",main = title_gr,xlim=c(0, 1), ylim=c(-l,0))
-      count <- 0
-    }
-	  count <- count+1
-  } #for (i in 1:j){
-} #if (groundwaterTF){
 
 # text on plot 
 xmain <- paste("vegcontrol=",vegcontrolTF)
 xmain <- paste(xmain,"  atmrespondTF=",atmrespondTF)
 xmain <- paste(xmain,"\nABLTF=",ABLTF)
-xmain <- paste(xmain,"  groundwaterTF=",groundwaterTF)
 xmain <- paste(xmain,"  cloudTF=",cloudTF)
 # regenerate VPD from qstar and qair 
 e <- result[,"qair"]*Psurf/(Rd/Rv)      # vapor pressure [hPa]
@@ -548,13 +387,4 @@ if (vegcontrolTF) {
        cex.axis=1.3,cex.lab=1.3,lwd=2,main=xmain)
   dev.copy(png,"PSN.png");dev.off()
 } #if(vegcontrolTF){
-
-if(groundwaterTF){
-  dev.new()
-  qr <- result[,"qair"]/result[,"qstar"]
-  plot(result[,"time"]/3600,qr,xlab="Time [hour]",ylab="qair/qstar",cex.axis=1.3,cex.lab=1.3,lwd=2,main=xmain)
-
-  dev.new()
-  plot(result[,"time"]/3600,result[,"srce"],xlab="Time [hour]",ylab="Infil - Evap",cex.axis=1.3,cex.lab=1.3,lwd=2,main=xmain)
-} #if(groundwaterTF){
 #################################################
