@@ -1,5 +1,5 @@
 # Solves simultaneously for both the stomatal conductance and the photosynthetic rate
-# based on the Ball-Berry (1987) and Farquarhar (1980) models, respectively.
+# based on the Ball-Berry (1987) and Farquhar (1980) models, respectively.
 # The solution is described in pages 196~197 of Bonan (2019):  "Climate change and terrestrial ecosystem modeling"
 # 6/1/2020 by John C. Lin (John.Lin@utah.edu)
 
