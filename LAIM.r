@@ -175,7 +175,7 @@ f<-function(T,Ta,SWdn,LWdn,albedo,epsilon.s,Ur,zr,z0,gvmax=gvmax){
     # b) Ball-Berry + Farquhar coupled stomatal conductance & photosynthesis model for vegetation resistance [s/m]
     hs <- e/esat  # fractional humidity (=1/RH) at leaf surface [.]
     cs <- Cair  # CO2 concentration at leaf surface [umole/mole]
-    BBFout <- BBF(SW=SWdn.t-SWup,Tleaf.C=T-273.15,hs=hs,cs=cs,Psurf=Psurf)  
+    BBFout <- BBF(SW=SWdn.t,Tleaf.C=T-273.15,hs=hs,cs=cs,Psurf=Psurf)  
     gsw <- BBFout["gsw"]  # stomatal conductance with respect to water vapor [mole H2O/m2/s]  
     rho.mole <- rho*1000/Md # air density [kg/m3] => molar density [moles/m3]
     gsw <- gsw/rho.mole   # [mole/m2/s] => [m/s]
@@ -254,7 +254,7 @@ while (tcurr<tmax) {
     # b) Ball-Berry + Farquhar coupled stomatal conductance & photosynthesis model for vegetation resistance [s/m]
     hs <- e/esat  # fractional humidity (=1/RH) at leaf surface [.]
     cs <- Cair  # CO2 concentration at leaf surface [umole/mole]
-    BBFout <- BBF(SW=SWdn.t-SWup,Tleaf.C=T-273.15,hs=hs,cs=cs,Psurf=Psurf)  
+    BBFout <- BBF(SW=SWdn.t,Tleaf.C=T-273.15,hs=hs,cs=cs,Psurf=Psurf)  
     gsw <- BBFout["gsw"]  # stomatal conductance with respect to water vapor [mole H2O/m2/s]  
     rho.mole <- rho*1000/Md # air density [kg/m3] => molar density [moles/m3]
     gsw <- gsw/rho.mole   # [mole/m2/s] => [m/s]
