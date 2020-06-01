@@ -14,7 +14,7 @@ cloudTF <- TRUE          #cloud physics response to relative humidity
 #################################################
 # Model timestep and duration
 dt <- 60           # model timestep [s]
-t.day <- 3         # run time in days
+t.day <- 1         # run time in days
 tmax <- t.day*24*3600  #maximum time [s]
 #################################################
 
@@ -41,6 +41,7 @@ g <- 9.80665 # standard surface gravity [m/s2]
 Rd <- 287.04 # Ideal Gas Constant of DRY air [J/kg/K] (Appendix 2 of Emanuel [1994])
 Rv <- 461.40 # Ideal Gas Constant of water vapor [J/kg/K] (Appendix A.1.4 of Jacobson [1999])
 sigma <- 5.670373E-8    # Stefan-Boltzmann constant [W/m2/K4]
+Md <- 28.97  #molar mass of dry air [g/mole]
 #################################################
 
 #################################################
@@ -80,10 +81,13 @@ qabove <- qair/5  # specific humidity of air above ABL [g/g] changed from 5 to 1
 W <- 0            # subsidence rate [m/s]
 Ur <- 1           # reference windspeed [m/s] at reference height zr
 zr <- 50          # reference height [m] where Ur applies
+Cair <- 400       # atmospheric CO2 concentration [umole/mole, or ppm]
 #################################################
 
 #################################################
 # --------------Functions-----------------#
+if(vegcontrolTF)source("Ball_Berry_Farquhar.r")  #load Ball-Berry + Farquhar coupled stomatal conductance & photosynthesis model  
+
 latentheat <- function(T.c){
   # Takes temperature [C] and returns value of latent heat of vaporization [J/g]
   lambda <- 2.501 - 0.0024 * T.c
@@ -103,7 +107,7 @@ satvap <- function(T.c){
   return(saturated)
 } #satvap<-function(T.c){
 
-# function to calculate vegetation resistance
+# function to calculate vegetation resistance using Jarvis-type empirical model
 rv.f <- function(T,VPD,gvmax,Tmin.c=0,Tmax.c=60,Topt.c=30,VPDmin=1500,VPDmax=7500){
   # Jarvis [1976] type model for stomatal control
   # 1) temperature function
@@ -161,34 +165,43 @@ f<-function(T,Ta,SWdn,LWdn,albedo,epsilon.s,Ur,zr,z0,gvmax=gvmax){
   H <- (Cp*rho/(ra))*(T-Ta)   # [W/m2]
 
   # determine latent heat flux
-  beta <- 1   # vegetation control (Jarvis type model)
   lambda <- 1000*latentheat(T-273.15)  # latent heat of vaporization [J/kg]
   esat <- satvap(T-273.15)/100 # saturation specific humidity [hPa]
   e <- qair*Psurf/(Rd/Rv)      # vapor pressure [hPa]
   VPD <- 100*(esat-e)          # vapor pressure deficit [Pa]
   qstar <- (Rd/Rv)*esat/Psurf  # saturation specific humidity [g/g]
   if (vegcontrolTF) {
-    rv<-rv.f(T=T,VPD=VPD,gvmax=gvmax)
+    # a) Jarvis-type empirical model for vegetation resistance [s/m]
+    #rv <- rv.f(T=T,VPD=VPD,gvmax=gvmax)   
+    # b) Ball-Berry + Farquhar coupled stomatal conductance & photosynthesis model for vegetation resistance [s/m]
+    hs <- e/esat  # fractional humidity (=1/RH) at leaf surface [.]
+    cs <- Cair  # CO2 concentration at leaf surface [umole/mole]
+    BBFout <- BBF(SW=SWdn.t-SWup,Tleaf.C=T-273.15,hs=hs,cs=cs,Psurf=Psurf)  
+    gsw <- BBFout["gsw"]  # stomatal conductance with respect to water vapor [mole H2O/m2/s]  
+    rho.mole <- rho*1000/Md # air density [kg/m3] => molar density [moles/m3]
+    gsw <- gsw/rho.mole   # [mole/m2/s] => [m/s]
+    rv <- 1/gsw           # vegetation resistance [s/m]
   } else {
     rv <- 1/gvmax
   } # if(vegcontrolTF){
   LE <- (lambda*rho/(ra+rv))*(qstar-qair) #[W/m2]
 
   # this should =0 when T is at equilibrium value
+  # !!!! include G here:  Rnet-H-LE-G !!!! #
   return(Rnet-H-LE)
 } # f<-function(T,Ta,SWdn,LWdn,albedo,epsilon.s){
 
 xinterv <- Ta.c[1]+273.15+c(-50,50)  # interval over which to search for equil temperature
-# a) use AVERAGE radiation, temps, to solve for initial equil. temperature
-# Tinit<-uniroot(f,interval=xinterv,Ta=mean(Ta.c)+273.15,SWdn=mean(SWdn),LWdn=mean(LWdn),albedo=albedo,epsilon.s=epsilon.s,CD=CD,Ubar=Ubar,gvmax=gvmax)$root
-# b) use initial radiation, temps to solve for initial equil. temperature
+# use initial radiation, temps to solve for initial equil. temperature
 Tinit <- uniroot(f,interval=xinterv,Ta=Ta.c[1]+273.15,SWdn=SWdn[1],LWdn=LWdn[1],
                  albedo=albedo,epsilon.s=epsilon.s,Ur=Ur,zr=zr,z0=z0,gvmax=gvmax)$root
-
+tmp <- f(T=Tinit,Ta=Ta.c[1]+273.15,SWdn=SWdn[1],LWdn=LWdn[1],
+         albedo=albedo,epsilon.s=epsilon.s,Ur=Ur,zr=zr,z0=z0,gvmax=gvmax)
+print(paste("Tinit [oC]:",signif(Tinit-273.15,5),"; ",signif(tmp,5)))
 # Impose perturbation
 # Tinit<-Tinit+10
 
-# ---------------------------------------Time Loop------------------------------------------#
+# ---------------------------------------Time Loop START------------------------------------------#
 tcurr <- 0
 T <- Tinit
 result_s <- NULL
@@ -279,9 +292,24 @@ while (tcurr<tmax) {
   VPD <- 100*(esat-e)            # vapor pressure deficit [Pa]
   qstar <- (Rd/Rv)*esat/Psurf    # saturation specific humidity [g/g]
   if (vegcontrolTF) {
-    rv <- rv.f(T=T,VPD=VPD,gvmax=gvmax)
+    # a) Jarvis-type empirical model for vegetation resistance [s/m]
+    # rv <- rv.f(T=T,VPD=VPD,gvmax=gvmax)
+    # b) Ball-Berry + Farquhar coupled stomatal conductance & photosynthesis model for vegetation resistance [s/m]
+    hs <- e/esat  # fractional humidity (=1/RH) at leaf surface [.]
+    cs <- Cair  # CO2 concentration at leaf surface [umole/mole]
+    BBFout <- BBF(SW=SWdn.t-SWup,Tleaf.C=T-273.15,hs=hs,cs=cs,Psurf=Psurf)  
+    gsw <- BBFout["gsw"]  # stomatal conductance with respect to water vapor [mole H2O/m2/s]  
+    rho.mole <- rho*1000/Md # air density [kg/m3] => molar density [moles/m3]
+    gsw <- gsw/rho.mole   # [mole/m2/s] => [m/s]
+    rv <- 1/gsw        # vegetation resistance [s/m]
+    An <- BBFout["An"]    # Net photosynthesis [umole/m2/s]
+    ci <- BBFout["ci"]    # intercellular CO2 [umole/mole]
+    #print(paste("rv(Jarvis):",signif(rv,4),"; rv(Ball-Berry):",signif(rv.BB,4),
+    #            "; An:",signif(An,4),"; ci:",signif(ci,4)))
   } else {
     rv <- 1/gvmax
+    An <- NA
+    ci <- NA
   } # if(vegcontrolTF){
   
   if (groundwaterTF) {
@@ -422,18 +450,19 @@ while (tcurr<tmax) {
 		theta[i,] <- theta[i+1,]
   } # if(groundwaterTF){
   evap2 <- sum(evap)
-  tmp <- c(tcurr,T,Ta,LWup,Rnet,H,LE,G,dT,qstar,qa,ra,rv,h,qM,thetavM,thetaM)
+  tmp <- c(tcurr,T,Ta,LWup,Rnet,H,LE,G,dT,qstar,qa,ra,rv,An,ci,h,qM,thetavM,thetaM)
   if (groundwaterTF) tmp <- c(tcurr,T,Ta,LWup,Rnet,H,LE,G,dT,PET,qstar,qa,ra,rv,h,qM,thetavM,thetaM,infil,evap2,srce,LWdn.t,SWdn.t,SWup,F0thetav,tcc)
   result_s <- rbind(result_s,tmp)
   tcurr <- tcurr+min(c(dt,tmax-tcurr))
 } # while(tcurr<ttmax){
-#---------------------------------------Time Loop------------------------------------------#
 result <- rbind(result_save,result_s)
+#---------------------------------------Time Loop END ------------------------------------------#
+
 if (groundwaterTF) {
   dimnames(result) <- list(NULL,c("time","T","Ta","LWup","Rnet","H","LE","G","dT","PET","qstar","qair","ra","rv","h","qM","thetavM","thetaM","infil","evap","srce","LWdn","SWdn","SWup","F0","tcc"))
 } else {
   dimnames(result) <- list(NULL,c("time","T","Ta","LWup","Rnet","H","LE","G","dT",
-                              "qstar","qair","ra","rv","h","qM","thetavM","thetaM"))
+                              "qstar","qair","ra","rv","An","ci","h","qM","thetavM","thetaM"))
 } #if(groundwaterTF){
 filenm <- "result.csv"
 write.csv(result,file=filenm)
@@ -503,12 +532,20 @@ title(main=xmain)
 dev.copy(png,"Energyfluxes.png",pointsize = 30, width = 1800, height = 1200);dev.off()
 
 if (atmrespondTF) {
-  # plot with time series of ABL height 
+  # plot time series of ABL height 
   dev.new()
   plot(result[,"time"]/3600,result[,"h"],type="l",xlab="Time [hour]",ylab="ABL height [m]",
        cex.axis=1.3,cex.lab=1.3,lwd=2,main=xmain)
   dev.copy(png,"ABLht.png");dev.off()
 } #if(atmrespondTF){
+
+if (vegcontrolTF) {
+  # plot time series of photosynthetic uptake 
+  dev.new()
+  plot(result[,"time"]/3600,result[,"An"],type="l",xlab="Time [hour]",ylab="Net Photosynthesis [umole/m2/s]",
+       cex.axis=1.3,cex.lab=1.3,lwd=2,main=xmain)
+  dev.copy(png,"PSN.png");dev.off()
+} #if(vegcontrolTF){
 
 if(groundwaterTF){
   dev.new()
