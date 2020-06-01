@@ -347,10 +347,12 @@ while (tcurr<tmax) {
   } else {
     LE <- (lambda*rho/(ra+rv))*(qstar-qa)} #[W/m2]
   
-    #determine ground heat flux (as residual)
+    # !!!! consider iterating until T converges, since rv depends on T itself (see pg. 198 of Bonan [2019]) !!!!
+  
+    # determine ground heat flux (as residual)
     G <- Rnet-LE-H  
 
-    #update temperature 
+    # update temperature 
     dT<-(G/Cs)*dt
     T<-T+dT
   
