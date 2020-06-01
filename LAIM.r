@@ -24,6 +24,8 @@ albedo.c <- 0.1    # surface albedo
 albedo <- albedo.c # surface albedo
 z0 <- 0.5          # roughness length [m]
 epsilon.s <- 0.97  # surface emissivity for forest, according to Jin & Liang [2006]
+LAI <- 3.0         # average leaf area index; for a forest like Harvard Forest, ~3.0 over the year [.]
+Kb <- 0.5          # extinction coefficient within plant canopy [.]; average value ~0.5:  https://link.springer.com/article/10.1007/s11707-014-0446-7
 # heat capacity of land surface
 #D<-0.1*(dt/tmax)      # the depth of soil that temp fluctuations would penetrate [m]; 0.1m is roughly the depth that would penetrate on diurnal timescales
 #D<-0.1
@@ -183,6 +185,11 @@ f<-function(T,Ta,SWdn,LWdn,albedo,epsilon.s,Ur,zr,z0,gvmax=gvmax){
   } else {
     rv <- 1/gvmax
   } # if(vegcontrolTF){
+  # scale up photosynthesis and stomatal conductance to CANOPY values using Big-Leaf Model, based on Eq. (15.5) of Bonan [2019]
+  scale.canopy<-(1-exp(-Kb*LAI))/Kb
+  An <- An*scale.canopy
+  gv <- (1/rv)*scale.canopy
+  rv <- 1/gv
   LE <- (lambda*rho/(ra+rv))*(qstar-qair) #[W/m2]
 
   # this should =0 when T is at equilibrium value
@@ -265,10 +272,14 @@ while (tcurr<tmax) {
     #            "; An:",signif(An,4),"; ci:",signif(ci,4)))
   } else {
     rv <- 1/gvmax
-    An <- NA
-    ci <- NA
+    An <- NA; ci <- NA
   } # if(vegcontrolTF){
   
+    # scale up photosynthesis and stomatal conductance to CANOPY values using Big-Leaf Model, based on Eq. (15.5) of Bonan [2019]
+    scale.canopy<-(1-exp(-Kb*LAI))/Kb
+    An <- An*scale.canopy
+    gv <- (1/rv)*scale.canopy
+    rv <- 1/gv
     LE <- (lambda*rho/(ra+rv))*(qstar-qa) #[W/m2]
   
     # !!!! consider iterating until T converges, since rv depends on T itself (see pg. 198 of Bonan [2019]) !!!!
