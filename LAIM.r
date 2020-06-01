@@ -317,7 +317,6 @@ while (tcurr<tmax) {
   tmp <- c(tcurr,T,Ta,LWup,Rnet,H,LE,G,dT,qstar,qa,ra,rv,An,ci,h,qM,thetavM,thetaM)
   result_s <- rbind(result_s,tmp)
   tcurr <- tcurr + min(c(dt,tmax-tcurr))
-  print(paste("tcurr:",tcurr))
 } # while(tcurr<ttmax){
 #---------------------------------------Time Loop END ------------------------------------------#
 result <- result_s
