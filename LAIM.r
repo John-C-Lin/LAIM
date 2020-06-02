@@ -15,6 +15,8 @@ cloudTF <- TRUE          #cloud physics response to relative humidity
 dt <- 60           # model timestep [s]
 t.day <- 1         # run time in days
 tmax <- t.day*24*3600  #maximum time [s]
+DTtol <- 0.01      # tolerance for change in T when solving numerically (if T is within this range, then stop iterating) [oK]
+countTmax <- 1000  # max number of times to iterate T calculation
 #################################################
 
 #################################################
@@ -209,7 +211,7 @@ tmp <- f(T=Tinit,Ta=Ta.c[1]+273.15,SWdn=SWdn[1],LWdn=LWdn[1],
          albedo=albedo,epsilon.s=epsilon.s,Ur=Ur,zr=zr,z0=z0,gvmax=gvmax)
 print(paste("Tinit [oC]:",signif(Tinit-273.15,5),"; ",signif(tmp,5)))
 # Impose perturbation
-# Tinit<-Tinit+10
+# Tinit <- Tinit+10
 
 # ---------------------------------------Time Loop START------------------------------------------#
 tcurr <- 0
@@ -227,6 +229,7 @@ while (tcurr<tmax) {
     print(paste("-------- tcurr=",round(tcurr/(3600*24)*10)/10,"[days] --------"))
     countp <- 0
   } #if (countp>500)
+  
   LWup <- epsilon.s*sigma*T^4   # upward longwave radiation [W/m2]
   LWdn.t <- approx(x=as.numeric(names(LWdn))*3600,y=LWdn,xout=tcurr%%(24*3600))$y  # downward shortwave radiation [W/m2]
   if (cloudTF) {
@@ -240,6 +243,11 @@ while (tcurr<tmax) {
   # determine net radiation
   Rnet <- SWdn.t-SWup+LWdn.t-LWup
 
+  countT <- 0; iterateT <- TRUE
+while (iterateT) {   #iterate until convergence
+  countT <- countT + 1
+  if(countT > countTmax)stop("T does not converge")
+    
   if (atmrespondTF) {
     Ta<-thetaM   #air temperature [K] is the one from zero-order jump model
     qa<-qM
@@ -272,47 +280,46 @@ while (tcurr<tmax) {
     rv <- 1/gsw        # vegetation resistance [s/m]
     An <- BBFout["An"]    # Net photosynthesis [umole/m2/s]
     ci <- BBFout["ci"]    # intercellular CO2 [umole/mole]
-    #print(paste("rv(Jarvis):",signif(rv,4),"; rv(Ball-Berry):",signif(rv.BB,4),
-    #            "; An:",signif(An,4),"; ci:",signif(ci,4)))
   } else {
     rv <- 1/gvmax
     An <- NA; ci <- NA
   } # if(vegcontrolTF){
   
-    # scale up photosynthesis and stomatal conductance to CANOPY values using Big-Leaf Model, based on Eq. (15.5) of Bonan [2019]
-    scale.canopy<-(1-exp(-Kb*LAI))/Kb
-    An <- An*scale.canopy
-    gv <- (1/rv)*scale.canopy
-    rv <- 1/gv
-    LE <- (lambda*rho/(ra+rv))*(qstar-qa) #[W/m2]
+  # scale up photosynthesis and stomatal conductance to CANOPY values using Big-Leaf Model, based on Eq. (15.5) of Bonan [2019]
+  scale.canopy<-(1-exp(-Kb*LAI))/Kb
+  An <- An*scale.canopy
+  gv <- (1/rv)*scale.canopy
+  rv <- 1/gv
+  LE <- (lambda*rho/(ra+rv))*(qstar-qa) #[W/m2]
   
-    # !!!! consider iterating until T converges, since rv depends on T itself (see pg. 198 of Bonan [2019]) !!!!
-  
-    # determine ground heat flux (as residual)
-    G <- Rnet-LE-H  
+  # determine ground heat flux (as residual)
+  G <- Rnet-LE-H  
 
-    # update temperature 
-    dT <- (G/Cs)*dt
-    T <- T+dT
-  
-    # if want atmosphere to respond
-    # Based on "zero-order jump" or "slab" model of convective boundary layer, described in Pg. 151~155 of Garratt [1992]
-    if (atmrespondTF) {
-      #update ABL-averaged q
-      #calculate surface virtual heat flux
-      lambda <- latentheat(T-273.15)  # latent heat of vaporization [J/g]
-      E <- LE/lambda   # surface moisture flux [g/m^2/s] 
-      F0theta <- H/Cp  # potential heat flux [K-kg/m^2/s]
-      F0thetav <- F0theta+0.073*lambda*E/Cp # virtual heat flux [K-kg/m^2/s]
-      if (ABLTF) {
-        Fhthetav <- -1*Beta*F0thetav   # closure hypothesis (Eq. 6.15 of Garratt [1992])
-        # calculate ABL growth rate
-        dh.dt<-(1+2*Beta)*F0thetav/(gamma*h)
-        if (F0thetav<=0.00) dh.dt <- 0 # ABL collapses
-      } else {
-        dh.dt <- 0
-        Fhthetav <- 0
-      } # if(ABLTF){
+  # update temperature 
+  DT <- (G/Cs)*dt
+  T <- T+DT
+  print(paste("iterating so that T converges:",countT,paste("T =",signif(T,5)),signif(DT,4)))
+  iterateT <- abs(DT)>DTtol   # continue iterating until T converges
+} # while (iterateT) {   #iterate until converge
+
+  # if want atmosphere to respond
+  # Based on "zero-order jump" or "slab" model of convective boundary layer, described in Pg. 151~155 of Garratt [1992]
+  if (atmrespondTF) {
+    #update ABL-averaged q
+    #calculate surface virtual heat flux
+    lambda <- latentheat(T-273.15)  # latent heat of vaporization [J/g]
+    E <- LE/lambda   # surface moisture flux [g/m^2/s] 
+    F0theta <- H/Cp  # potential heat flux [K-kg/m^2/s]
+    F0thetav <- F0theta+0.073*lambda*E/Cp # virtual heat flux [K-kg/m^2/s]
+    if (ABLTF) {
+      Fhthetav <- -1*Beta*F0thetav   # closure hypothesis (Eq. 6.15 of Garratt [1992])
+      # calculate ABL growth rate
+      dh.dt<-(1+2*Beta)*F0thetav/(gamma*h)
+      if (F0thetav<=0.00) dh.dt <- 0 # ABL collapses
+    } else {
+      dh.dt <- 0
+      Fhthetav <- 0
+    } # if(ABLTF){
     
     # calculate entrainment flux of humidity
     deltaq <- qabove - qM
@@ -328,14 +335,14 @@ while (tcurr<tmax) {
     h <- h+dh.dt*dt
     if (F0thetav<=0.00&ABLTF) h<-hmin # override value:  ABL collapses
   } # if(atmrespondTF){
-    
-  tmp <- c(tcurr,T,Ta,LWup,Rnet,H,LE,G,dT,qstar,qa,ra,rv,An,ci,h,qM,thetavM,thetaM)
+  
+  tmp <- c(tcurr,T,Ta,LWup,Rnet,H,LE,G,DT,qstar,qa,ra,rv,An,ci,h,qM,thetavM,thetaM)
   result_s <- rbind(result_s,tmp)
   tcurr <- tcurr + min(c(dt,tmax-tcurr))
 } # while(tcurr<ttmax){
 #---------------------------------------Time Loop END ------------------------------------------#
-result <- result_s
-dimnames(result) <- list(NULL,c("time","T","Ta","LWup","Rnet","H","LE","G","dT",
+result <- result_s[-1,]   # remove initial value
+dimnames(result) <- list(NULL,c("time","T","Ta","LWup","Rnet","H","LE","G","DT",
                               "qstar","qair","ra","rv","An","ci","h","qM","thetavM","thetaM"))
 filenm <- "result.csv"
 write.csv(result,file=filenm)
