@@ -27,12 +27,16 @@ epsilon.s <- 0.97  # surface emissivity for forest, according to Jin & Liang [20
 LAI <- 3.0         # average leaf area index; for a forest like Harvard Forest, ~3.0 over the year [.]
 Kb <- 0.5          # extinction coefficient within plant canopy [.]; average value ~0.5:  https://link.springer.com/article/10.1007/s11707-014-0446-7
 # heat capacity of land surface
-#D<-0.1*(dt/tmax)      # the depth of soil that temp fluctuations would penetrate [m]; 0.1m is roughly the depth that would penetrate on diurnal timescales
-#D<-0.1
+# a) heat capacity based on soil
 D <- 0.1*(1/24)          # the depth of soil that temp fluctuations would penetrate [m]; 0.1m is roughly the depth that would penetrate on diurnal timescales
 Cp.soil <- 1921          # specific heat of soil organic material [J/kg/K]
 rho.soil <- 1300         # density of soil organic material [kg/m3]
 Cs <- Cp.soil*rho.soil*D # heat capacity of organic soil [J/K/m2]
+# b) heat capacity based on vegetation
+# Hveg <- 10               # height of vegetation [m]
+# rho.veg <- 0.7E6         # wood density [g/m3]
+# Cp.veg <- 3000           # bulk heat capacity of above-ground vegetation [J/kg/K];  Sect. 7.2 of Bonan [2019]
+# Cs <- Cp.veg*(rho.veg/1000)*Hveg/100  # heat capacity of vegetation [J/K/m2]
 #################################################
 
 #################################################
