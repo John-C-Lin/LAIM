@@ -5,15 +5,15 @@
 #################################################
 # Flags to Turn On/Off Processes 
 vegcontrolTF <- TRUE    # vegetation control?
-atmrespondTF <- TRUE     # does atmosphere respond to surface fluxes?
+atmrespondTF <- TRUE    # does atmosphere respond to surface fluxes?
 ABLTF<- TRUE            # does ABL growth or decay, according to surface heat fluxes?
-cloudTF <- TRUE          #cloud physics response to relative humidity
+cloudTF <- TRUE         #cloud physics response to relative humidity
 #################################################
 
 #################################################
 # Model timestep and duration
 dt <- 60           # model timestep [s]
-t.day <- 1         # run time in days
+t.day <- 2         # run time in days
 tmax <- t.day*24*3600  #maximum time [s]
 DTtol <- 0.01      # tolerance for change in T when solving numerically (if T is within this range, then stop iterating) [oK]
 countTmax <- 1000  # max number of times to iterate T calculation
@@ -298,7 +298,7 @@ while (iterateT) {   #iterate until convergence
   # update temperature 
   DT <- (G/Cs)*dt
   T <- T+DT
-  print(paste("iterating so that T converges:",countT,paste("T =",signif(T,5)),signif(DT,4)))
+  #print(paste("iterating so that T converges:",countT,paste("T =",signif(T,5)),signif(DT,4)))
   iterateT <- abs(DT)>DTtol   # continue iterating until T converges
 } # while (iterateT) {   #iterate until converge
 
