@@ -3,7 +3,7 @@
 # The solution is described in pages 196~197 of Bonan (2019):  "Climate change and terrestrial ecosystem modeling"
 # 6/1/2020 by John C. Lin (John.Lin@utah.edu)
 
-BBF <- function(SW,Tleaf.C,hs,cs=400,Psurf=1000){
+BBF <- function(SW,Tleaf.C,hs,beta=1.0,cs=400,Psurf=1000){
 # Arguments:  Atmospheric variables 
 # SW is shortwave radiation [W/m2]
 # Psurf is surface pressure [hPa]
@@ -65,6 +65,9 @@ Vcmax <- Vcmax*(1+exp((298.15*DS-DHd)/(298.15*Rg)))/(1+exp((DS*Tleaf.K-DHd)/(Rg*
 Jmax <- Jmax*(1+exp((298.15*DS-DHd)/(298.15*Rg)))/(1+exp((DS*Tleaf.K-DHd)/(Rg*Tleaf.K)))
 Rd <- Rd*(1+exp((298.15*DS-DHd)/(298.15*Rg)))/(1+exp((DS*Tleaf.K-DHd)/(Rg*Tleaf.K)))
 
+# Scale Vcmax and Jmax with water stress parameter "beta" (dependent on soil moisture)
+Vcmax <- beta*Vcmax
+Jmax <- beta*Jmax
 
 # Calculate J, the rate of electron transport [umole/m2/s]
 PAR <- 1.98*SW  # conversion from shortwave radiation [W/m2] to PAR [umole-photon/m2/s];  Lin et al. (2011)
