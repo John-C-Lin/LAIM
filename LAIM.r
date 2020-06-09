@@ -175,7 +175,7 @@ ra.f <- function(Ur=1,zr=50,z0=z0,d=0,rho=1){
 #################################################
 
 # initialize T with equilibrium value (determined through "uniroot")
-f<-function(T,Ta,SWdn,LWdn,albedo,epsilon.s,Ur,zr,z0,gvmax=gvmax){
+f<-function(T,Ta,SWdn,LWdn,albedo,epsilon.s,Tsoil1,Ur,zr,z0,gvmax=gvmax){
   # --------------Physical constants--------#
   Cp <- 1005.7; Cv <- 719 # heat capacities @ constant pressure & volume [J/kg/K] (Appendix 2 of Emanuel [1994])
   g <- 9.80665 # standard surface gravity [m/s2]
@@ -219,16 +219,18 @@ f<-function(T,Ta,SWdn,LWdn,albedo,epsilon.s,Ur,zr,z0,gvmax=gvmax){
   rv <- 1/gv
   LE <- (lambda*rho/(ra+rv))*(qstar-qair) #[W/m2]
 
+  # determine ground heat flux from two-layer (force-restore) soil model to calculate ground heat flux and soil moisture
+  G <- Lambda * (T - Tsoil1)
+  
   # this should =0 when T is at equilibrium value
-  # !!!! include G here:  Rnet-H-LE-G !!!! #
-  return(Rnet-H-LE)
+  return(Rnet-H-LE-G)
 } # f<-function(T,Ta,SWdn,LWdn,albedo,epsilon.s){
 
 xinterv <- Ta.c[1]+273.15+c(-50,50)  # interval over which to search for equil temperature
 # use initial radiation, temps to solve for initial equil. temperature
-Tinit <- uniroot(f,interval=xinterv,Ta=Ta.c[1]+273.15,SWdn=SWdn[1],LWdn=LWdn[1],
+Tinit <- uniroot(f,interval=xinterv,Ta=Ta.c[1]+273.15,SWdn=SWdn[1],LWdn=LWdn[1],Tsoil1=Tsoil1,
                  albedo=albedo,epsilon.s=epsilon.s,Ur=Ur,zr=zr,z0=z0,gvmax=gvmax)$root
-tmp <- f(T=Tinit,Ta=Ta.c[1]+273.15,SWdn=SWdn[1],LWdn=LWdn[1],
+tmp <- f(T=Tinit,Ta=Ta.c[1]+273.15,SWdn=SWdn[1],LWdn=LWdn[1],Tsoil1=Tsoil1,
          albedo=albedo,epsilon.s=epsilon.s,Ur=Ur,zr=zr,z0=z0,gvmax=gvmax)
 print(paste("Tinit [oC]:",signif(Tinit-273.15,5),"; ",signif(tmp,5)))
 # Impose perturbation
@@ -282,13 +284,19 @@ while (iterateT) {   #iterate until convergence
   H <- (Cp*rho/(ra))*(T-Ta)   # [W/m2]
 
   # determine latent heat flux
-  beta <- 1   # vegetation control (Jarvis type model)
+  beta <- 1   # water stress parameter (dependent on soil moisture)
   lambda <- 1000*latentheat(T-273.15)  # latent heat of vaporization [J/kg]
   esat <- satvap(T-273.15)/100 # saturation specific humidity [hPa]
   e <- qa*Psurf/(Rd/Rv)        # vapor pressure [hPa]
   VPD <- 100*(esat-e)            # vapor pressure deficit [Pa]
   qstar <- (Rd/Rv)*esat/Psurf    # saturation specific humidity [g/g]
   if (vegcontrolTF) {
+    if (soilWTF) {
+      beta <- (Wsoil1 - Wwilt)/(Wfc - Wwilt)
+      if (Wsoil1 >= Wfc) beta <- 1.0
+      if (Wsoil1 <= Wwilt) beta <- 0
+      # print(paste("Wsoil1, beta:",round(Wsoil1,4),round(beta,4)))
+    } # if (soilWTF)
     # a) Jarvis-type empirical model for vegetation resistance [s/m]
     # rv <- rv.f(T=T,VPD=VPD,gvmax=gvmax)
     # b) Ball-Berry + Farquhar coupled stomatal conductance & photosynthesis model for vegetation resistance [s/m]
@@ -435,7 +443,7 @@ matplot(result[,"time"]/3600,result[,c("Rnet","LWup","H","LE","G")],type="l",lty
         cex.axis=1.5,cex.lab=1.5,col=c("black","black","orange","blue","darkgreen"),lwd=2,xlab="Time [hr]",ylab="Energy Fluxes [W/m2]")
 legend(x="topright",c("Rnet","LWup","H","LE","G"),col=c("black","black","orange","blue","darkgreen"),lwd=2,lty=c(1,2,1,1,1))
 title(main=xmain)
-dev.copy(png,"Energyfluxes.png",pointsize = 30, width = 1800, height = 1200);dev.off()
+dev.copy(png,"Energyfluxes.png");dev.off()
 
 # plot soil water content 
 if (soilWTF) {
@@ -443,7 +451,8 @@ if (soilWTF) {
   plot(result[,"time"]/3600,result[,"Wsoil1"],type="l",xlab="Time [hour]",ylab="Soil Volumetric Water Content [m3/m3]",
        cex.axis=1.3,cex.lab=1.3,lwd=2,main=xmain,col="black")
   abline(h=Wsoil2,lty=3,lwd=2)
-} #if (soilWTF)
+  dev.copy(png,"Wsoil.png");dev.off()
+  } #if (soilWTF)
 
 if (atmrespondTF) {
   # plot time series of ABL height 
