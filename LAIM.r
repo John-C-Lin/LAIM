@@ -31,15 +31,15 @@ LAI <- 3.0         # average leaf area index; for a forest like Harvard Forest, 
 Kb <- 0.5          # extinction coefficient within plant canopy [.]; average value ~0.5:  https://link.springer.com/article/10.1007/s11707-014-0446-7
 # heat capacity of land surface
 # a) heat capacity based on soil
-D <- 0.1*(1/24)          # the depth of soil that temp fluctuations would penetrate [m]; 0.1m is roughly the depth that would penetrate on diurnal timescales
-Cp.soil <- 1921          # specific heat of soil organic material [J/kg/K]
-rho.soil <- 1300         # density of soil organic material [kg/m3]
-Cs <- Cp.soil*rho.soil*D # heat capacity of organic soil [J/K/m2]
+# D <- 0.1*(1/24)          # the depth of soil that temp fluctuations would penetrate [m]; 0.1m is roughly the depth that would penetrate on diurnal timescales
+# Cp.soil <- 1921          # specific heat of soil organic material [J/kg/K]
+# rho.soil <- 1300         # density of soil organic material [kg/m3]
+# Cs <- Cp.soil*rho.soil*D # heat capacity of organic soil [J/K/m2]
 # b) heat capacity based on vegetation
-# Hveg <- 10               # height of vegetation [m]
-# rho.veg <- 0.7E6         # wood density [g/m3]
-# Cp.veg <- 3000           # bulk heat capacity of above-ground vegetation [J/kg/K];  Sect. 7.2 of Bonan (2019)
-# Cs <- Cp.veg*(rho.veg/1000)*Hveg/100  # heat capacity of vegetation [J/K/m2]
+Hveg <- 10               # height of vegetation [m]
+rho.veg <- 0.7E6         # wood density [g/m3]
+Cp.veg <- 3000           # bulk heat capacity of above-ground vegetation [J/kg/K];  Sect. 7.2 of Bonan (2019)
+Cs <- Cp.veg*(rho.veg/1000)*Hveg/100  # heat capacity of vegetation [J/K/m2]
 
 Lambda <- 5.9       # thermal diffusivity of skin layer [.]
 # two-layer (force-restore) soil model, from de Arellano et al. (2015)
@@ -135,30 +135,6 @@ satvap <- function(T.c){
   return(saturated)
 } #satvap<-function(T.c){
 
-# function to calculate vegetation resistance using Jarvis-type empirical model
-rv.f <- function(T,VPD,gvmax,Tmin.c=0,Tmax.c=60,Topt.c=30,VPDmin=1500,VPDmax=7500){
-  # Jarvis [1976] type model for stomatal control
-  # 1) temperature function
-  T.c <- T-273.15  
-  fT <- (T.c-Tmin.c)*(T.c-Tmax.c)/((T.c-Tmin.c)*(T.c-Tmax.c)-(T.c-Topt.c)^2)
-  fT[fT<0] <- 0
-  # 2) vapor pressure deficit (VPD) function
-  fVPD <- rep(1.0,length(VPD))
-  fVPD[VPD>VPDmax] <- 0      # hi VPD--stomata completely closed
-  sel <- VPD>=VPDmin & VPD<=VPDmax
-  slope<- -1/(VPDmax-VPDmin)
-  fVPD[sel] <- 1+slope*(VPD[sel]-VPDmin)
-  
-  # final penalty function
-  beta <- fT*fVPD
-  gv <- beta*gvmax
-  rv <- 1/gv   # vegetation resistance [s/m]
-  rv[rv>1E6] <- 999999   # when infinite, just assign a really large number
-  return(rv)
-} #rv.f<-function()
-
-rvs <- rv.f(T=273.15+20,VPD=0:4000,gvmax=gvmax)
-
 # function to calculate aerodynamic resistance
 ra.f <- function(Ur=1,zr=50,z0=z0,d=0,rho=1){
   #arguments:  Ur is reference windspeed [m/s] at reference height zr
@@ -199,9 +175,7 @@ f<-function(T,Ta,SWdn,LWdn,albedo,epsilon.s,Tsoil1,Ur,zr,z0,gvmax=gvmax){
   VPD <- 100*(esat-e)          # vapor pressure deficit [Pa]
   qstar <- (Rd/Rv)*esat/Psurf  # saturation specific humidity [g/g]
   if (vegcontrolTF) {
-    # a) Jarvis-type empirical model for vegetation resistance [s/m]
-    #rv <- rv.f(T=T,VPD=VPD,gvmax=gvmax)   
-    # b) Ball-Berry + Farquhar coupled stomatal conductance & photosynthesis model for vegetation resistance [s/m]
+    # Ball-Berry + Farquhar coupled stomatal conductance & photosynthesis model for vegetation resistance [s/m]
     hs <- e/esat  # fractional humidity (=1/RH) at leaf surface [.]
     cs <- Cair  # CO2 concentration at leaf surface [umole/mole]
     BBFout <- BBF(SW=SWdn.t,Tleaf.C=T-273.15,hs=hs,beta=1.0,cs=cs,Psurf=Psurf)  
@@ -298,9 +272,7 @@ while (iterateT) {   #iterate until convergence
       if (Wsoil1 <= Wwilt) beta <- 0
       # print(paste("Wsoil1, beta:",round(Wsoil1,4),round(beta,4)))
     } # if (soilWTF)
-    # a) Jarvis-type empirical model for vegetation resistance [s/m]
-    # rv <- rv.f(T=T,VPD=VPD,gvmax=gvmax)
-    # b) Ball-Berry + Farquhar coupled stomatal conductance & photosynthesis model for vegetation resistance [s/m]
+    # Ball-Berry + Farquhar coupled stomatal conductance & photosynthesis model for vegetation resistance [s/m]
     hs <- e/esat  # fractional humidity (=1/RH) at leaf surface [.]
     cs <- Cair  # CO2 concentration at leaf surface [umole/mole]
     BBFout <- BBF(SW=SWdn.t,Tleaf.C=T-273.15,hs=hs,beta=beta,cs=cs,Psurf=Psurf)  
