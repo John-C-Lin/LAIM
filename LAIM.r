@@ -4,11 +4,11 @@
 
 #################################################
 # Flags to Turn On/Off Processes 
-vegcontrolTF <- FALSE   # vegetation control?
+vegcontrolTF <- TRUE    # vegetation control?
 atmrespondTF <- TRUE    # does atmosphere respond to surface fluxes?
 ABLTF<- TRUE            # does ABL growth or decay, according to surface heat fluxes?
 cloudTF <- TRUE         # cloud physics response to relative humidity
-soilTF <- TRUE          # turn on soil T & moisture?
+soilWTF <- TRUE         # turn on soil moisture feedbacks?
 #################################################
 
 #################################################
@@ -316,7 +316,6 @@ while (iterateT) {   #iterate until convergence
   # determine ground heat flux 
   # use two-layer (force-restore) soil model to calculate ground heat flux and soil moisture
   G <- Lambda * (T - Tsoil1)
-  CG <- CGsat * (Wsat/Wsoil2)^(bb/(2*log(10)))
   
   Storage <- Rnet - LE - H - G
   # update temperature 
@@ -326,7 +325,25 @@ while (iterateT) {   #iterate until convergence
   iterateT <- abs(DT)>DTtol   # continue iterating until T converges
 } # while (iterateT) {   #iterate until converge
 
-  Tsoil1 <- Tsoil1 + (CG*G - (2*pi/(86400))*(Tsoil1 - Tsoil2))*dt
+  # heat transport between surface and deep soil layer to update Tsoil1 from CLASS model
+  CG <- CGsat * (Wsat/Wsoil2)^(bb/(2*log(10)))
+  Tsoil1 <- Tsoil1 + (CG*G - (2*pi/(86400))*(Tsoil1 - Tsoil2))*dt  #Eq. (9.32) of de Arellano et al. (2015)
+  
+  if (soilWTF) {
+    # update soil water content, based on CLASS model
+    C1 <- C1sat*(Wsat/Wsoil1)^(bb/2 + 1)  #Eq. (9.35) of de Arellano et al. (2015)
+    Wsmall <- 1E-3
+    C2 <- C2ref*(Wsoil2/(Wsat - Wsoil2 + Wsmall))  #Eq. (9.36) of de Arellano et al. (2015)
+    Wsoil1eq <- Wsoil2 - aa*Wsat*((Wsoil2/Wsat)^pp)*(1-(Wsoil2/Wsat)^(8*pp))  #Eq. (9.37) of de Arellano et al. (2015)
+    # Eq. (9.34) of de Arellano et al. (2015); NOTE:  use LE instead of LEsoil as in (9.34), and -1 multiplied by C1 that is missing in (9.34)
+    dWsoil <- ((-C1/(rho.W*d1))*(LE/lambda) - (C2/86400)*(Wsoil1 - Wsoil2))*dt  
+    dWsoil.a <- ((-C1/(rho.W*d1))*(LE/lambda))*dt
+    dWsoil.b <- (- (C2/86400)*(Wsoil1 - Wsoil2))*dt
+    Wsoil1 <- Wsoil1 + dWsoil
+    if (Wsoil1 < 0) Wsoil1 <- 0
+    # print(paste("Wsoil:",round(Wsoil1,4),signif(C1,4),signif(C2,4),round(Wsoil1eq,4),round(dWsoil,4),signif(dWsoil.a,4),signif(dWsoil.b,4)))
+  } #if (soilWTF) {
+  
   # if want atmosphere to respond
   # Based on "zero-order jump" or "slab" model of convective boundary layer, described in Pg. 151~155 of Garratt [1992]
   if (atmrespondTF) {
@@ -361,22 +378,23 @@ while (iterateT) {   #iterate until convergence
     if (F0thetav<=0.00&ABLTF) h<-hmin # override value:  ABL collapses
   } # if(atmrespondTF){
   
-  tmp <- c(tcurr,T,Ta,Tsoil1,LWup,Rnet,H,LE,G,DT,qstar,qa,ra,rv,An,ci,h,qM,thetavM,thetaM)
+  tmp <- c(tcurr,T,Ta,Tsoil1,Wsoil1,LWup,Rnet,H,LE,G,DT,qstar,qa,ra,rv,An,ci,h,qM,thetavM,thetaM)
   result_s <- rbind(result_s,tmp)
   tcurr <- tcurr + min(c(dt,tmax-tcurr))
 } # while(tcurr<ttmax){
 #---------------------------------------Time Loop END ------------------------------------------#
 result <- result_s[-1,]   # remove initial value
-dimnames(result) <- list(NULL,c("time","T","Ta","Tsoil1","LWup","Rnet","H","LE","G","DT",
+dimnames(result) <- list(NULL,c("time","T","Ta","Tsoil1","Wsoil1","LWup","Rnet","H","LE","G","DT",
                               "qstar","qair","ra","rv","An","ci","h","qM","thetavM","thetaM"))
 filenm <- "result.csv"
 write.csv(result,file=filenm)
 print(paste(filenm,"written out"))
 
 # text on plot 
-xmain <- paste("vegcontrol=",vegcontrolTF)
+xmain <- paste("vegcontrolTF=",vegcontrolTF)
 xmain <- paste(xmain,"  atmrespondTF=",atmrespondTF)
 xmain <- paste(xmain,"\nABLTF=",ABLTF)
+xmain <- paste(xmain,"  soilWTF=",soilWTF)
 xmain <- paste(xmain,"  cloudTF=",cloudTF)
 # regenerate VPD from qstar and qair 
 e <- result[,"qair"]*Psurf/(Rd/Rv)      # vapor pressure [hPa]
@@ -418,6 +436,14 @@ matplot(result[,"time"]/3600,result[,c("Rnet","LWup","H","LE","G")],type="l",lty
 legend(x="topright",c("Rnet","LWup","H","LE","G"),col=c("black","black","orange","blue","darkgreen"),lwd=2,lty=c(1,2,1,1,1))
 title(main=xmain)
 dev.copy(png,"Energyfluxes.png",pointsize = 30, width = 1800, height = 1200);dev.off()
+
+# plot soil water content 
+if (soilWTF) {
+  dev.new()
+  plot(result[,"time"]/3600,result[,"Wsoil1"],type="l",xlab="Time [hour]",ylab="Soil Volumetric Water Content [m3/m3]",
+       cex.axis=1.3,cex.lab=1.3,lwd=2,main=xmain,col="black")
+  abline(h=Wsoil2,lty=3,lwd=2)
+} #if (soilWTF)
 
 if (atmrespondTF) {
   # plot time series of ABL height 
