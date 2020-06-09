@@ -204,7 +204,7 @@ f<-function(T,Ta,SWdn,LWdn,albedo,epsilon.s,Tsoil1,Ur,zr,z0,gvmax=gvmax){
     # b) Ball-Berry + Farquhar coupled stomatal conductance & photosynthesis model for vegetation resistance [s/m]
     hs <- e/esat  # fractional humidity (=1/RH) at leaf surface [.]
     cs <- Cair  # CO2 concentration at leaf surface [umole/mole]
-    BBFout <- BBF(SW=SWdn.t,Tleaf.C=T-273.15,hs=hs,cs=cs,Psurf=Psurf)  
+    BBFout <- BBF(SW=SWdn.t,Tleaf.C=T-273.15,hs=hs,beta=1.0,cs=cs,Psurf=Psurf)  
     gsw <- BBFout["gsw"]  # stomatal conductance with respect to water vapor [mole H2O/m2/s]  
     rho.mole <- rho*1000/Md # air density [kg/m3] => molar density [moles/m3]
     gsw <- gsw/rho.mole   # [mole/m2/s] => [m/s]
@@ -292,6 +292,7 @@ while (iterateT) {   #iterate until convergence
   qstar <- (Rd/Rv)*esat/Psurf    # saturation specific humidity [g/g]
   if (vegcontrolTF) {
     if (soilWTF) {
+      # Eq. (12.56) of Bonan (2019)
       beta <- (Wsoil1 - Wwilt)/(Wfc - Wwilt)
       if (Wsoil1 >= Wfc) beta <- 1.0
       if (Wsoil1 <= Wwilt) beta <- 0
@@ -302,7 +303,7 @@ while (iterateT) {   #iterate until convergence
     # b) Ball-Berry + Farquhar coupled stomatal conductance & photosynthesis model for vegetation resistance [s/m]
     hs <- e/esat  # fractional humidity (=1/RH) at leaf surface [.]
     cs <- Cair  # CO2 concentration at leaf surface [umole/mole]
-    BBFout <- BBF(SW=SWdn.t,Tleaf.C=T-273.15,hs=hs,cs=cs,Psurf=Psurf)  
+    BBFout <- BBF(SW=SWdn.t,Tleaf.C=T-273.15,hs=hs,beta=beta,cs=cs,Psurf=Psurf)  
     gsw <- BBFout["gsw"]  # stomatal conductance with respect to water vapor [mole H2O/m2/s]  
     rho.mole <- rho*1000/Md # air density [kg/m3] => molar density [moles/m3]
     gsw <- gsw/rho.mole   # [mole/m2/s] => [m/s]
@@ -386,13 +387,13 @@ while (iterateT) {   #iterate until convergence
     if (F0thetav<=0.00&ABLTF) h<-hmin # override value:  ABL collapses
   } # if(atmrespondTF){
   
-  tmp <- c(tcurr,T,Ta,Tsoil1,Wsoil1,LWup,Rnet,H,LE,G,DT,qstar,qa,ra,rv,An,ci,h,qM,thetavM,thetaM)
+  tmp <- c(tcurr,T,Ta,Tsoil1,Wsoil1,beta,LWup,Rnet,H,LE,G,DT,qstar,qa,ra,rv,An,ci,h,qM,thetavM,thetaM)
   result_s <- rbind(result_s,tmp)
   tcurr <- tcurr + min(c(dt,tmax-tcurr))
 } # while(tcurr<ttmax){
 #---------------------------------------Time Loop END ------------------------------------------#
 result <- result_s[-1,]   # remove initial value
-dimnames(result) <- list(NULL,c("time","T","Ta","Tsoil1","Wsoil1","LWup","Rnet","H","LE","G","DT",
+dimnames(result) <- list(NULL,c("time","T","Ta","Tsoil1","Wsoil1","beta","LWup","Rnet","H","LE","G","DT",
                               "qstar","qair","ra","rv","An","ci","h","qM","thetavM","thetaM"))
 filenm <- "result.csv"
 write.csv(result,file=filenm)
@@ -449,10 +450,12 @@ dev.copy(png,"Energyfluxes.png");dev.off()
 if (soilWTF) {
   dev.new()
   plot(result[,"time"]/3600,result[,"Wsoil1"],type="l",xlab="Time [hour]",ylab="Soil Volumetric Water Content [m3/m3]",
-       cex.axis=1.3,cex.lab=1.3,lwd=2,main=xmain,col="black")
+       cex.axis=1.3,cex.lab=1.3,lwd=2,main=xmain,col="black",ylim=c(0,Wfc))
   abline(h=Wsoil2,lty=3,lwd=2)
+  lines(result[,"time"]/3600,result[,"beta"],type="l",col="lightgreen",lwd=2)
+  legend(x="topright",c("Wsoil1","Wsoil2","beta"),col=c("black","black","lightgreen"),lwd=2,lty=c(1,3,1))
   dev.copy(png,"Wsoil.png");dev.off()
-  } #if (soilWTF)
+} #if (soilWTF)
 
 if (atmrespondTF) {
   # plot time series of ABL height 
