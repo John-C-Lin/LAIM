@@ -41,24 +41,56 @@ rho.veg <- 0.7E6         # wood density [g/m3]
 Cp.veg <- 3000           # bulk heat capacity of above-ground vegetation [J/kg/K];  Sect. 7.2 of Bonan (2019)
 Cs <- Cp.veg*(rho.veg/1000)*Hveg/100  # heat capacity of vegetation [J/K/m2]
 
+# soil parameters from Clapp & Hornberger (1978); taken from CLASS model (https://github.com/classmodel/modelgui/blob/master/landsoil.cpp)
+# select soil type from one of below
+ soiltype <- "Sandy loam"
+# soiltype <- "Sand"
+# soiltype <- "Clay"
+if (tolower(soiltype)=="sandy loam") {
+# a) Sandy loam soil
+  Wsat <- 0.472  # saturated volumetric water content [m3/m3]
+  Wfc <- 0.323   # volumetric water content at field capacity [m3/m3]
+  Wwilt <- 0.171 # volumetric water content at wilting point [m3/m3]
+  aa <- 0.219    # Clapp & Hornberger (1978) retention parameter a
+  bb <- 4.9      # Clapp & Hornberger (1978) retention parameter b
+  pp <- 4        # Clapp & Hornberger (1978) retention parameter c
+  CGsat <- 3.56E-6 # saturated soil conductivity for heat [???]
+  C1sat <- 0.132
+  C2ref <- 1.8 
+} else if (tolower(soiltype)=="sand") {
+  # b) Sand
+  Wsat <- 0.403  # saturated volumetric water content [m3/m3]
+  Wfc <- 0.244   # volumetric water content at field capacity [m3/m3]
+  Wwilt <- 0.059 # volumetric water content at wilting point [m3/m3]
+  aa <- 0.387    # Clapp & Hornberger (1978) retention parameter a
+  bb <- 4.05     # Clapp & Hornberger (1978) retention parameter b
+  pp <- 4        # Clapp & Hornberger (1978) retention parameter c
+  CGsat <- 3.222E-6 # saturated soil conductivity for heat [???]
+  C1sat <- 0.082
+  C2ref <- 3.9 
+} else if (tolower(soiltype)=="clay") {
+  # c) Clay
+  Wsat <- 0.614  # saturated volumetric water content [m3/m3]
+  Wfc <- 0.541   # volumetric water content at field capacity [m3/m3]
+  Wwilt <- 0.335 # volumetric water content at wilting point [m3/m3]
+  aa <- 0.083    # Clapp & Hornberger (1978) retention parameter a
+  bb <- 11.4     # Clapp & Hornberger (1978) retention parameter b
+  pp <- 12        # Clapp & Hornberger (1978) retention parameter c
+  CGsat <- 3.6E-6 # saturated soil conductivity for heat [???]
+  C1sat <- 0.342
+  C2ref <- 0.3 
+} else {
+  stop (paste("Need to select valid soil type:",soiltype))  
+}
+ 
 Lambda <- 5.9       # thermal diffusivity of skin layer [.]
 # two-layer (force-restore) soil model, from de Arellano et al. (2015)
 Tsoil2 <- 286       # T of deep soil layer [K] that is constant
 Tsoil1 <- Tsoil2    # T of top soil layer [K] that varies w/ time
-Wsoil2 <- 0.21      # volumetric water concent of deep soil layer [m3/m3]
+Wsoil2 <- Wfc       # volumetric water concent of deep soil layer [m3/m3]
+#Wsoil2 <- 0.2       # volumetric water concent of deep soil layer [m3/m3]
 Wsoil1 <- Wsoil2    # volumetric water concent of top soil layer [m3/m3]
 d1 <- 0.1
-# soil parameters from Clapp & Hornberger (1978)
-# a) Sandy loam soil
-Wsat <- 0.472  # saturated volumetric water content [m3/m3]
-Wfc <- 0.323   # volumetric water content at field capacity [m3/m3]
-Wwilt <- 0.171 # volumetric water content at wilting point [m3/m3]
-aa <- 0.219    # Clapp & Hornberger (1978) retention parameter a
-bb <- 4.9      # Clapp & Hornberger (1978) retention parameter b
-pp <- 4        # Clapp & Hornberger (1978) retention parameter c
-CGsat <- 3.56E-6 # saturated soil conductivity for heat [???]
-C1sat <- 0.132
-C2ref <- 1.8 
 #################################################
 
 #################################################
@@ -75,12 +107,12 @@ rho.W <- 1000 # density of water [kg/m3]
 #################################################
 # ---------- External forcing ------------------#
 # Downward shortwave radiation
-t.hr<-0:24
-# a) hourly varying
-SWdn<--15*(t.hr-12)^2+800 # hourly downward shortwave radiation [W/m2]
-names(SWdn)<-t.hr
-SWdn[as.character(c(0:5,19:24))]<-0
-# b) constant
+ t.hr<-0:24
+# a) hourly varying SWdn
+ SWdn<--15*(t.hr-12)^2+800 # hourly downward shortwave radiation [W/m2]
+ names(SWdn)<-t.hr
+ SWdn[as.character(c(0:5,19:24))]<-0 # night time:  set to 0
+# b) constant SWdn
 # SWdn[1:length(SWdn)]<-1000
 
 # Downward longwave radiation
@@ -422,10 +454,13 @@ dev.copy(png,"Energyfluxes.png");dev.off()
 if (soilWTF) {
   dev.new()
   plot(result[,"time"]/3600,result[,"Wsoil1"],type="l",xlab="Time [hour]",ylab="Soil Volumetric Water Content [m3/m3]",
-       cex.axis=1.3,cex.lab=1.3,lwd=2,main=xmain,col="black",ylim=c(0,Wfc))
+       cex.axis=1.3,cex.lab=1.3,lwd=2,main=paste("Soil type =",soiltype,"\n",xmain),col="black",ylim=c(Wwilt,Wfc))
   abline(h=Wsoil2,lty=3,lwd=2)
-  lines(result[,"time"]/3600,result[,"beta"],type="l",col="lightgreen",lwd=2)
-  legend(x="topright",c("Wsoil1","Wsoil2","beta"),col=c("black","black","lightgreen"),lwd=2,lty=c(1,3,1))
+  # par(new=TRUE)
+  # plot(result[,"time"]/3600,result[,"beta"],type="l",col="lightgreen",lwd=2,axes=F,xlab="",ylab="",ylim=c(0,1.0))
+  # axis(4,col="lightgreen",col.axis="lightgreen",cex.axis=1.3)
+  # legend(x="bottomright",c("Wsoil1","Wsoil2","beta"),col=c("black","black","lightgreen"),lwd=2,lty=c(1,3,1))
+  legend(x="bottomright",c("Wsoil1","Wsoil2"),col=c("black","black"),lwd=2,lty=c(1,3))
   dev.copy(png,"Wsoil.png");dev.off()
 } #if (soilWTF)
 
