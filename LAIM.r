@@ -7,8 +7,10 @@
 vegcontrolTF <- TRUE    # vegetation control?
 atmrespondTF <- TRUE    # does atmosphere respond to surface fluxes?
 ABLTF<- TRUE            # does ABL growth or decay, according to surface heat fluxes?
-cloudTF <- TRUE         # cloud physics response to relative humidity
+cloudTF <- TRUE         # cloud physics response to relative humidity?
 soilWTF <- TRUE         # turn on soil moisture feedbacks?
+co2budgetTF <- TRUE     # track atmospheric CO2, based on surface and entrainment fluxes? 
+if (!vegcontrolTF & co2budgetTF) stop("vegcontrolTF needs to be TRUE to track CO2")
 #################################################
 
 #################################################
@@ -137,11 +139,12 @@ hmin <- 100       # minimum height of atmospheric boundary layer [m]
 thetavM0<-(Ta.c[1]+273.15)*(1+0.61*qair) # initial virtual potential temperature [K]; Eq. 1.5.1b of Stull [1988]
 Beta <- 0.2       # closure hypothesis:  fraction of surface virtual potential temperature flux that determines entrainment heat flux
 gamma <- 5/1000   # slope of thetav above growing ABL [K/m]
-qabove <- qair/5  # specific humidity of air above ABL [g/g] changed from 5 to 1
+qabove <- qair/5  # specific humidity of air above ABL [g/g]
 W <- 0            # subsidence rate [m/s]
 Ur <- 1           # reference windspeed [m/s] at reference height zr
 zr <- 50          # reference height [m] where Ur applies
-Cair <- 400       # atmospheric CO2 concentration [umole/mole, or ppm]
+Cair <- 400       # atmospheric CO2 concentration [umole/mole, or ppm]; this is also the initial CO2 value within ABL if co2budgetTF = TRUE
+Cabove <- Cair    # CO2 concentration [ppm] above ABL
 #################################################
 
 #################################################
@@ -326,6 +329,9 @@ while (iterateT) {   #iterate until convergence
   rv <- 1/gv
   LE <- (lambda*rho/(ra+rv))*(qstar-qa) #[W/m2]
   
+  # !!! determine RESPIRATION!!!
+  Resp <- 0
+  
   # determine ground heat flux 
   # use two-layer (force-restore) soil model to calculate ground heat flux and soil moisture
   G <- Lambda * (T - Tsoil1)
@@ -386,19 +392,33 @@ while (iterateT) {   #iterate until convergence
     dthetavM.dt <- dthetavM.dt/rho        # [K-kg/m^3/s]=>[K/s]
     thetavM <- thetavM+dthetavM.dt*dt
     thetaM <- thetavM/(1+0.61*qM)   # potential temperature, from virtual pot temp [K];  Eq. 1.5.1b of Stull [1988]
+    # update ABL-averaged CO2
+    # !!!! determine ABL-averaged air density, instead of using 'rho' !!!! #
+    if (co2budgetTF) {
+      Flux <- (-1*An + Resp)/1E6  # surface CO2 flux [mole/m2/s]; photosynthesis is a negative flux (removal from atmosphere)
+      #print(paste("1: An, Flux, dh/dt",signif(An,4),signif(Flux,4),signif(dh.dt,4)))
+      if(dh.dt>0){
+        Phi.ent<-(rho/(Md/1000))*dh.dt*(Cabove - Cair)   # entrainment flux of CO2
+        Flux <- Flux + Phi.ent
+        #print(paste("2: Flux",signif(Flux,5)))
+      } # if(dh.dt>0){
+      dC.dt <- Flux*(Md/1000)/(rho*h)  # dilute surface flux [mole/m2/s] in box of height h
+      Cair <- Cair + dC.dt*dt
+      print(paste("CO2:",signif(Cair,5)))
+    } # if (co2budgetTF) {
     # update ABL height
     h <- h+dh.dt*dt
     if (F0thetav<=0.00&ABLTF) h<-hmin # override value:  ABL collapses
   } # if(atmrespondTF){
   
-  tmp <- c(tcurr,T,Ta,Tsoil1,Wsoil1,beta,LWup,Rnet,H,LE,G,DT,qstar,qa,ra,rv,An,ci,h,qM,thetavM,thetaM)
+  tmp <- c(tcurr,T,Ta,Tsoil1,Wsoil1,beta,LWup,Rnet,H,LE,G,DT,qstar,qa,ra,rv,An,ci,h,qM,thetavM,thetaM,Cair)
   result_s <- rbind(result_s,tmp)
   tcurr <- tcurr + min(c(dt,tmax-tcurr))
 } # while(tcurr<ttmax){
 #---------------------------------------Time Loop END ------------------------------------------#
 result <- result_s[-1,]   # remove initial value
 dimnames(result) <- list(NULL,c("time","T","Ta","Tsoil1","Wsoil1","beta","LWup","Rnet","H","LE","G","DT",
-                              "qstar","qair","ra","rv","An","ci","h","qM","thetavM","thetaM"))
+                              "qstar","qair","ra","rv","An","ci","h","qM","thetavM","thetaM","CO2"))
 filenm <- "result.csv"
 write.csv(result,file=filenm)
 print(paste(filenm,"written out"))
@@ -478,5 +498,11 @@ if (vegcontrolTF) {
   plot(result[,"time"]/3600,result[,"An"],type="l",xlab="Time [hour]",ylab="Net Photosynthesis [umole/m2/s]",
        cex.axis=1.3,cex.lab=1.3,lwd=2,main=xmain)
   dev.copy(png,"PSN.png");dev.off()
+  
+  # plot time series of CO2 
+  dev.new()
+  plot(result[,"time"]/3600,result[,"CO2"],type="l",xlab="Time [hour]",ylab="CO2 [ppm]",
+       cex.axis=1.3,cex.lab=1.3,lwd=2,main=xmain)
+  dev.copy(png,"CO2.png");dev.off()
 } #if(vegcontrolTF){
 #################################################
