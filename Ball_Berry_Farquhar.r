@@ -9,7 +9,7 @@ BBF <- function(SW,Tleaf.C,hs,beta=1.0,cs=400,Psurf=1000){
 # Psurf is surface pressure [hPa]
 # hs is fractional humidity (=RH/100) at leaf surface [.]
 # cs is CO2 concentration at leaf surface [umole/mole]
-  
+
 Psurf <- Psurf*100  # [hPa]=>[Pa]
 
 #################################################
@@ -23,7 +23,7 @@ g0 <- 0.01 # minimum stomatal conductance [mole H2O/m2/s]
 # Bernacchi et al. (2001); From Table 11.1 of Bonan (2019)
 Kc25 <- 404.9*Psurf/1E6  # Michaelis-Menten constant for CO2 @ 25oC [Pa]
 Ko25 <- 278.4*Psurf/1E3  # Michaelis-Menten constant for O2 @ 25oC [Pa]
-Gamma.star25 <- 42.75*Psurf/1E6 # [Pa]
+Gamma.star25 <- 42.75*Psurf/1E6 # CO2 compensation point @ 25oC [Pa]
 Vcmax25 <- 60 # max carboxylation rate @ 25oC [umole/m2/s];  Table 11.4 of Bonan (2019); value of 60 is typical among different kinds of trees
 
 Rd25 <- 0.015*Vcmax25 # leaf respiration [umole/m2/s];  Table 11.5 of Bonan (2019)
@@ -102,11 +102,17 @@ ci.Aj <- (-BB + sqrt(BB^2 - 4*AA*CC))/(2*AA)
 Ac <- Vcmax*(ci.Ac - Gamma.star)/(ci.Ac + Kc*(1 + oi/Ko))  
 # Light-limited assimilation rate [umole/m2/s];  Table 11.5 of Bonan (2019)
 Aj <- (J/4)*((ci.Aj - Gamma.star)/(ci.Aj + 2*Gamma.star))
+if (is.nan(Ac)) Ac <- 0
+if (is.nan(Aj)) Aj <- 0
+
+# tmp<-c(cs,ci.Ac,ci.Aj,Gamma.star,J);names(tmp)<-c("cs","ci.Ac","ci.Aj","Gamma.star","J")
+# print(signif(tmp,5))
+# print(paste("Ac:",signif(Ac,5),"; Aj:",signif(Aj,5)))
 
 # photosynthesis rate is which ever of Ac or Aj that is limiting
 # A <- apply(cbind(Ac,Aj),1,min)
-if (Ac < Aj) {A <- Ac; ci <- ci.Ac}
-if (Aj < Ac) {A <- Aj; ci <- ci.Aj}
+if (Ac <= Aj) {A <- Ac; ci <- ci.Ac}
+if (Aj < Ac)  {A <- Aj; ci <- ci.Aj}
 
 # Net photosynthesis [umole/m2/s]
 An <- A - Rd
