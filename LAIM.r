@@ -6,11 +6,11 @@
 # Flags to Turn On/Off Processes 
 vegcontrolTF <- TRUE    # vegetation control?
 atmrespondTF <- TRUE    # does atmosphere respond to surface fluxes?
-ABLTF<- FALSE           # does ABL growth or decay, according to surface heat fluxes?
+ABLTF<- TRUE            # does ABL growth or decay, according to surface heat fluxes?
 cloudTF <- TRUE         # cloud physics response to relative humidity?
 soilWTF <- TRUE         # turn on soil moisture feedbacks?
 co2budgetTF <- TRUE     # track atmospheric CO2, based on surface and entrainment fluxes? 
-if (!vegcontrolTF & co2budgetTF) stop("vegcontrolTF needs to be TRUE to track CO2")
+if (!vegcontrolTF & co2budgetTF) stop ("vegcontrolTF needs to be TRUE to track CO2")
 #################################################
 
 #################################################
@@ -186,7 +186,7 @@ ra.f <- function(Ur=1,zr=50,z0=z0,d=0,rho=1){
 #################################################
 
 # initialize T with equilibrium value (determined through "uniroot")
-f<-function(T,Ta,SWdn,LWdn,albedo,epsilon.s,Tsoil1,Ur,zr,z0,gvmax=gvmax){
+f<-function(T,Ta,SWdn,LWdn,albedo,epsilon.s,Tsoil1,Ur,zr,z0,gvmax=gvmax,Psurf=1000,Hscale=8000){
   # --------------Physical constants--------#
   Cp <- 1005.7; Cv <- 719 # heat capacities @ constant pressure & volume [J/kg/K] (Appendix 2 of Emanuel [1994])
   g <- 9.80665 # standard surface gravity [m/s2]
@@ -199,9 +199,9 @@ f<-function(T,Ta,SWdn,LWdn,albedo,epsilon.s,Tsoil1,Ur,zr,z0,gvmax=gvmax){
   Rnet <- SWdn-SWup+LWdn-LWup
   
   # determine sensible heat flux
-  rho <- 1   # air density [kg/m3]
-  ra <- ra.f(Ur=Ur,zr=zr,z0=z0,rho=rho)
-  H <- (Cp*rho/(ra))*(T-Ta)   # [W/m2]
+  rho.surf <- Psurf*100/(Rd*T)   # surface air density [kg/m3]
+  ra <- ra.f(Ur=Ur,zr=zr,z0=z0,rho=rho.surf)
+  H <- (Cp*rho.surf/(ra))*(T-Ta)   # [W/m2]
 
   # determine latent heat flux
   lambda <- 1000*latentheat(T-273.15)  # latent heat of vaporization [J/kg]
@@ -215,7 +215,7 @@ f<-function(T,Ta,SWdn,LWdn,albedo,epsilon.s,Tsoil1,Ur,zr,z0,gvmax=gvmax){
     cs <- Cair  # CO2 concentration at leaf surface [umole/mole]
     BBFout <- BBF(SW=SWdn.t,Tleaf.C=T-273.15,hs=hs,beta=1.0,cs=cs,Psurf=Psurf)  
     gsw <- BBFout["gsw"]  # stomatal conductance with respect to water vapor [mole H2O/m2/s]  
-    rho.mole <- rho*1000/Md # air density [kg/m3] => molar density [moles/m3]
+    rho.mole <- rho.surf*1000/Md # air density [kg/m3] => molar density [moles/m3]
     gsw <- gsw/rho.mole   # [mole/m2/s] => [m/s]
     rv <- 1/gsw           # vegetation resistance [s/m]
   } else {
@@ -226,7 +226,7 @@ f<-function(T,Ta,SWdn,LWdn,albedo,epsilon.s,Tsoil1,Ur,zr,z0,gvmax=gvmax){
   An <- An*scale.canopy
   gv <- (1/rv)*scale.canopy
   rv <- 1/gv
-  LE <- (lambda*rho/(ra+rv))*(qstar-qair) #[W/m2]
+  LE <- (lambda*rho.surf/(ra + rv))*(qstar - qair) #[W/m2]
 
   # determine ground heat flux from two-layer (force-restore) soil model to calculate ground heat flux and soil moisture
   G <- Lambda * (T - Tsoil1)
@@ -238,9 +238,9 @@ f<-function(T,Ta,SWdn,LWdn,albedo,epsilon.s,Tsoil1,Ur,zr,z0,gvmax=gvmax){
 xinterv <- Ta.c[1]+273.15+c(-50,50)  # interval over which to search for equil temperature
 # use initial radiation, temps to solve for initial equil. temperature
 Tinit <- uniroot(f,interval=xinterv,Ta=Ta.c[1]+273.15,SWdn=SWdn[1],LWdn=LWdn[1],Tsoil1=Tsoil1,
-                 albedo=albedo,epsilon.s=epsilon.s,Ur=Ur,zr=zr,z0=z0,gvmax=gvmax)$root
+                 albedo=albedo,epsilon.s=epsilon.s,Ur=Ur,zr=zr,z0=z0,gvmax=gvmax,Psurf=Psurf,Hscale=Hscale)$root
 tmp <- f(T=Tinit,Ta=Ta.c[1]+273.15,SWdn=SWdn[1],LWdn=LWdn[1],Tsoil1=Tsoil1,
-         albedo=albedo,epsilon.s=epsilon.s,Ur=Ur,zr=zr,z0=z0,gvmax=gvmax)
+         albedo=albedo,epsilon.s=epsilon.s,Ur=Ur,zr=zr,z0=z0,gvmax=gvmax,Psurf=Psurf,Hscale=Hscale)
 print(paste("Tinit [oC]:",signif(Tinit-273.15,5),"; ",signif(tmp,5)))
 # Impose perturbation
 # Tinit <- Tinit+10
@@ -288,9 +288,9 @@ while (iterateT) {   #iterate until convergence
     qa <- qair
   } # if(atmrespondTF){
   # determine sensible heat flux
-  rho <- 1   # air density [kg/m3]
-  ra <- ra.f(Ur=Ur,zr=zr,z0=z0,rho=rho)
-  H <- (Cp*rho/(ra))*(T-Ta)   # [W/m2]
+  rho.surf <- Psurf*100/(Rd*T)   # surface air density [kg/m3]
+  ra <- ra.f(Ur=Ur,zr=zr,z0=z0,rho=rho.surf)
+  H <- (Cp*rho.surf/(ra))*(T-Ta)   # [W/m2]
 
   # determine latent heat flux
   beta <- 1   # water stress parameter (dependent on soil moisture)
@@ -312,7 +312,7 @@ while (iterateT) {   #iterate until convergence
     cs <- Cair  # CO2 concentration at leaf surface [umole/mole]
     BBFout <- BBF(SW=SWdn.t,Tleaf.C=T-273.15,hs=hs,beta=beta,cs=cs,Psurf=Psurf)  
     gsw <- BBFout["gsw"]  # stomatal conductance with respect to water vapor [mole H2O/m2/s]  
-    rho.mole <- rho*1000/Md # air density [kg/m3] => molar density [moles/m3]
+    rho.mole <- rho.surf*1000/Md # air density [kg/m3] => molar density [moles/m3]
     gsw <- gsw/rho.mole   # [mole/m2/s] => [m/s]
     rv <- 1/gsw        # vegetation resistance [s/m]
     An <- BBFout["An"]    # Net photosynthesis [umole/m2/s]
@@ -327,7 +327,7 @@ while (iterateT) {   #iterate until convergence
   An <- An*scale.canopy
   gv <- (1/rv)*scale.canopy
   rv <- 1/gv
-  LE <- (lambda*rho/(ra+rv))*(qstar-qa) #[W/m2]
+  LE <- (lambda*rho.surf/(ra+rv))*(qstar-qa) #[W/m2]
   
   # !!! determine RESPIRATION!!!
   Resp <- 0
@@ -379,15 +379,18 @@ while (iterateT) {   #iterate until convergence
       Fhthetav <- 0
     } # if(ABLTF){
     
+    rhobar <- rho.surf*(1-exp(-h/Hscale))*(Hscale/h)  # determine ABL-averaged air density [kg/m3]
+    # print(paste("h,rho.surf,rhobar:",signif(h,4),signif(rho.surf,4),signif(rhobar,4)))
+    
     # calculate entrainment flux of humidity
     deltaq <- qabove - qM
-    Fhq <- -1*rho*deltaq*(dh.dt-W)*1000  # entrainment flux of humidity [g/m2/s] NOTE:  assume CONSTANT air density!
-    dq.dt <- (E-Fhq)/(rho*1000*h) # change of humidity in ABL [1/s]; NOTE:  assume CONSTANT air density!
+    Fhq <- -1*rhobar*deltaq*(dh.dt-W)*1000  # entrainment flux of humidity [g/m2/s] NOTE:  assume CONSTANT air density!
+    dq.dt <- (E - Fhq)/(rhobar*1000*h) # change of humidity in ABL [1/s]
     qM <- qM+dq.dt*dt             # updated qM [g/g]
     # update ABL-averaged thetav
-    dthetavM.dt <- (F0thetav-Fhthetav)/h  # change of thetav in ABL [K-kg/m^3/s]
-    dthetavM.dt <- dthetavM.dt/rho        # [K-kg/m^3/s]=>[K/s]
-    thetavM <- thetavM+dthetavM.dt*dt
+    dthetavM.dt <- (F0thetav - Fhthetav)/h  # change of thetav in ABL [K-kg/m^3/s]
+    dthetavM.dt <- dthetavM.dt/rhobar        # [K-kg/m^3/s]=>[K/s]
+    thetavM <- thetavM + dthetavM.dt*dt
     thetaM <- thetavM/(1+0.61*qM)   # potential temperature, from virtual pot temp [K];  Eq. 1.5.1b of Stull [1988]
     # update ABL-averaged CO2
     CO2flux.veg <- NA; CO2flux.ent <- NA; CO2flux.tot <- NA
@@ -395,8 +398,6 @@ while (iterateT) {   #iterate until convergence
       CO2flux.veg <- (-1*An + Resp)  # surface CO2 flux [umole/m2/s]; photosynthesis is a negative flux (removal from atmosphere)
       CO2flux.tot <- CO2flux.veg
       CO2flux.ent <- 0
-      rhobar <- rho*(1-exp(-h/Hscale))*(Hscale/h)  # determine ABL-averaged air density [kg/m3]
-      # print(paste("h,rhobar:",signif(h,4),signif(rhobar,4)))
       if(dh.dt>0){
         CO2flux.ent<-(rhobar/(Md/1000))*(dh.dt - W)*(Cabove - Cair)   # entrainment flux of CO2 [umole/m2/s]
         CO2flux.tot <- CO2flux.veg + CO2flux.ent
