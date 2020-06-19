@@ -85,8 +85,8 @@ if (tolower(soiltype)=="sandy loam") {
   stop (paste("Need to select valid soil type:",soiltype))  
 }
  
-Lambda <- 5.9       # thermal diffusivity of skin layer [.]
-# two-layer (force-restore) soil model, from de Arellano et al. (2015)
+Lambda <- 5.9       # thermal diffusivity of skin layer [???]
+# Initialize two-layer (force-restore) soil model, from de Arellano et al. (2015)
 Tsoil2 <- 286       # T of deep soil layer [K] that is constant
 Tsoil1 <- Tsoil2    # T of top soil layer [K] that varies w/ time
 Wsoil2 <- Wfc       # volumetric water concent of deep soil layer [m3/m3]
@@ -120,6 +120,7 @@ rho.W <- 1000 # density of water [kg/m3]
 # Downward longwave radiation
 LWdn <- SWdn; LWdn[1:length(LWdn)] <- 350 # constant downward longwave radiation [W/m2]
 
+# -----------Atmospheric conditions----------#
 # Air temperature
 Ta.c<- -0.5*(t.hr-12)^2+30  # PRESCRIBED air temperature [deg-C]
 names(Ta.c) <- t.hr
@@ -133,8 +134,7 @@ RH<-0.8
 e<-RH*satvap(mean(Ta.c))/100  #vapor pressure [hPa]
 Psurf<-1000     #surface pressure [hPa] 
 qair<-(Rd/Rv)*e/Psurf   #specific humidity [g/g]
-
-# atmospheric conditions
+Hscale <- 8000    # scale height of atmosphere--i.e., height at which Psurf decays to (1/e) [m]
 hmin <- 200       # minimum height of atmospheric boundary layer [m]
 thetavM0<-(Ta.c[1]+273.15)*(1+0.61*qair) # initial virtual potential temperature [K]; Eq. 1.5.1b of Stull [1988]
 Beta <- 0.2       # closure hypothesis:  fraction of surface virtual potential temperature flux that determines entrainment heat flux
@@ -356,11 +356,8 @@ while (iterateT) {   #iterate until convergence
     Wsoil1eq <- Wsoil2 - aa*Wsat*((Wsoil2/Wsat)^pp)*(1-(Wsoil2/Wsat)^(8*pp))  #Eq. (9.37) of de Arellano et al. (2015)
     # Eq. (9.34) of de Arellano et al. (2015); NOTE:  use LE instead of LEsoil as in (9.34), and -1 multiplied by C1 that is missing in (9.34)
     dWsoil <- ((-C1/(rho.W*d1))*(LE/lambda) - (C2/86400)*(Wsoil1 - Wsoil2))*dt  
-    dWsoil.a <- ((-C1/(rho.W*d1))*(LE/lambda))*dt
-    dWsoil.b <- (- (C2/86400)*(Wsoil1 - Wsoil2))*dt
     Wsoil1 <- Wsoil1 + dWsoil
     if (Wsoil1 < 0) Wsoil1 <- 0
-    # print(paste("Wsoil:",round(Wsoil1,4),signif(C1,4),signif(C2,4),round(Wsoil1eq,4),round(dWsoil,4),signif(dWsoil.a,4),signif(dWsoil.b,4)))
   } #if (soilWTF) {
   
   # if want atmosphere to respond
@@ -393,19 +390,18 @@ while (iterateT) {   #iterate until convergence
     thetavM <- thetavM+dthetavM.dt*dt
     thetaM <- thetavM/(1+0.61*qM)   # potential temperature, from virtual pot temp [K];  Eq. 1.5.1b of Stull [1988]
     # update ABL-averaged CO2
-    # !!!! determine ABL-averaged air density, instead of using 'rho' !!!! #
     CO2flux.veg <- NA; CO2flux.ent <- NA; CO2flux.tot <- NA
     if (co2budgetTF) {
       CO2flux.veg <- (-1*An + Resp)  # surface CO2 flux [umole/m2/s]; photosynthesis is a negative flux (removal from atmosphere)
       CO2flux.tot <- CO2flux.veg
       CO2flux.ent <- 0
-      #print(paste("1: An, CO2flux.veg, dh/dt",signif(An,4),signif(CO2flux.veg,4),signif(dh.dt,4)))
+      rhobar <- rho*(1-exp(-h/Hscale))*(Hscale/h)  # determine ABL-averaged air density [kg/m3]
+      # print(paste("h,rhobar:",signif(h,4),signif(rhobar,4)))
       if(dh.dt>0){
-        CO2flux.ent<-(rho/(Md/1000))*(dh.dt - W)*(Cabove - Cair)   # entrainment flux of CO2 [umole/m2/s]
+        CO2flux.ent<-(rhobar/(Md/1000))*(dh.dt - W)*(Cabove - Cair)   # entrainment flux of CO2 [umole/m2/s]
         CO2flux.tot <- CO2flux.veg + CO2flux.ent
-        #print(paste("2: CO2flux.ent",signif(CO2flux.ent,5)))
       } # if(dh.dt>0){
-      dC.dt <- CO2flux.tot*(Md/1000)/(rho*h)  # dilute surface flux in box of height h to generate change in CO2 [ppm/s]
+      dC.dt <- CO2flux.tot*(Md/1000)/(rhobar*h)  # dilute surface flux in box of height h to generate change in CO2 [ppm/s]
       Cair <- Cair + dC.dt*dt          # update CO2 concentration [ppm]
       #print(paste("CO2:",signif(Cair,5)))
     } # if (co2budgetTF) {
