@@ -7,7 +7,7 @@
 vegcontrolTF <- TRUE    # vegetation control?
 atmrespondTF <- TRUE    # does atmosphere respond to surface fluxes?
 ABLTF<- TRUE            # does ABL growth or decay, according to surface heat fluxes?
-cloudTF <- TRUE         # cloud physics response to relative humidity?
+cloudTF <- TRUE         # cloud response to relative humidity?
 soilWTF <- TRUE         # turn on soil moisture feedbacks?
 co2budgetTF <- TRUE     # track atmospheric CO2, based on surface and entrainment fluxes? 
 if (!vegcontrolTF & co2budgetTF) stop ("vegcontrolTF needs to be TRUE to track CO2")
@@ -213,11 +213,13 @@ f<-function(T,Ta,SWdn,LWdn,albedo,epsilon.s,Tsoil1,Ur,zr,z0,gvmax=gvmax,Psurf=10
     # Ball-Berry + Farquhar coupled stomatal conductance & photosynthesis model for vegetation resistance [s/m]
     hs <- e/esat  # fractional humidity (=1/RH) at leaf surface [.]
     cs <- Cair  # CO2 concentration at leaf surface [umole/mole]
-    BBFout <- BBF(SW=SWdn.t,Tleaf.C=T-273.15,hs=hs,beta=1.0,cs=cs,Psurf=Psurf)  
+    BBFout <- BBF(SW=SWdn,Tleaf.C=T-273.15,hs=hs,beta=1.0,cs=cs,Psurf=Psurf)  
     gsw <- BBFout["gsw"]  # stomatal conductance with respect to water vapor [mole H2O/m2/s]  
     rho.mole <- rho.surf*1000/Md # air density [kg/m3] => molar density [moles/m3]
     gsw <- gsw/rho.mole   # [mole/m2/s] => [m/s]
     rv <- 1/gsw           # vegetation resistance [s/m]
+    An <- BBFout["An"]    # Net photosynthesis [umole/m2/s]
+    ci <- BBFout["ci"]    # intercellular CO2 [umole/mole]
   } else {
     rv <- 1/gvmax
   } # if(vegcontrolTF){
@@ -252,6 +254,7 @@ result_s <- NULL
 h <- hmin    # initialize with minimum 
 thetaM <- Ta.c[1]+273.15
 qM <- qair   # initialize with prescribed specific humidity [g/g]
+if (atmrespondTF) {qa <- qM} else {qa <- qair} 
 thetavM <- thetaM*(1+0.61*qM)   # virtual potential temperature [K];  Eq. 1.5.1b of Stull [1988]
 countp <- 0
 tcc <- 0   # total cloud fraction
@@ -266,6 +269,9 @@ while (tcurr<tmax) {
   LWdn.t <- approx(x=as.numeric(names(LWdn))*3600,y=LWdn,xout=tcurr%%(24*3600))$y  # downward shortwave radiation [W/m2]
   if (cloudTF) {
 	  RHe <- 0.5			# fitting parameter sets TCC to gain at approximately 60% humidity
+	  esat <- satvap(T-273.15)/100 # saturation specific humidity [hPa]
+	  e <- qa*Psurf/(Rd/Rv)        # vapor pressure [hPa]
+	  qstar <- (Rd/Rv)*esat/Psurf    # saturation specific humidity [g/g]
 	  tcc <- min(exp((qM/qstar-1)/(1-RHe)),1) 	# Walcek 1994 model equation (1) 	
 	  LWdn.t<- LWup-100+80*(tcc)
 	  albedo <- albedo.c+0.75*(tcc)
@@ -281,8 +287,8 @@ while (iterateT) {   #iterate until convergence
   if(countT > countTmax)stop("T does not converge")
     
   if (atmrespondTF) {
-    Ta<-thetaM   #air temperature [K] is the one from zero-order jump model
-    qa<-qM
+    Ta <- thetaM   
+    qa <- qM
   } else {
     Ta <- approx(x=as.numeric(names(Ta.c))*3600,y=Ta.c,xout=tcurr%%(24*3600))$y+273.15  #use prescribed value
     qa <- qair
