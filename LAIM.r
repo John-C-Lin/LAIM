@@ -243,7 +243,7 @@ Tinit <- uniroot(f,interval=xinterv,Ta=Ta.c[1]+273.15,SWdn=SWdn[1],LWdn=LWdn[1],
                  albedo=albedo,epsilon.s=epsilon.s,Ur=Ur,zr=zr,z0=z0,gvmax=gvmax,Psurf=Psurf,Hscale=Hscale)$root
 tmp <- f(T=Tinit,Ta=Ta.c[1]+273.15,SWdn=SWdn[1],LWdn=LWdn[1],Tsoil1=Tsoil1,
          albedo=albedo,epsilon.s=epsilon.s,Ur=Ur,zr=zr,z0=z0,gvmax=gvmax,Psurf=Psurf,Hscale=Hscale)
-print(paste("Tinit [oC]:",signif(Tinit-273.15,5),"; ",signif(tmp,5)))
+print(paste("Tinit [oC]:",signif(Tinit-273.15,5),";   Rn-H-LE-G =",signif(tmp,4)))
 # Impose perturbation
 # Tinit <- Tinit+10
 
@@ -448,9 +448,9 @@ dev.new(); par(mfrow=c(2,2),cex.main=0.7)
 ylims <- range(result[,c("T","Ta","Tsoil1")]-273.15)
 plot(result[,"time"]/3600,result[,"T"]-273.15,type="l",xlab="Time [hour]",ylab="Temperature [deg-C]",
      cex.axis=1.3,cex.lab=1.3,lwd=2,ylim=ylims,main=xmain)
-lines(result[,"time"]/3600,result[,"Ta"]-273.15,lty=2,lwd=2)
-lines(result[,"time"]/3600,result[,"Tsoil1"]-273.15,lty=3,lwd=2)
-legend(x="topright",c("Tsurf","Tair","Tsoil"),lwd=2,lty=c(1,2,3))
+lines(result[,"time"]/3600,result[,"Ta"]-273.15,lty=3,lwd=2)
+lines(result[,"time"]/3600,result[,"Tsoil1"]-273.15,lty=1,lwd=2,col="darkgray")
+legend(x="topright",c("Tsurf","Tair","Tsoil"),lwd=2,lty=c(1,3,1),col=c("black","black","darkgray"))
 
 plot(result[,"time"]/3600,VPD,type="l",xlab="Time [hour]",ylab="VPD [Pa]",lwd=2,
      cex.axis=1.3,cex.lab=1.3,main=xmain)
@@ -458,15 +458,14 @@ plot(result[,"time"]/3600,VPD,type="l",xlab="Time [hour]",ylab="VPD [Pa]",lwd=2,
 ylims <- range(result[,c("qstar","qair")]*1000)
 plot(result[,"time"]/3600,result[,"qstar"]*1000,type="l",xlab="Time [hour]",ylab="Specific humidity [g/kg]",
      cex.axis=1.3,cex.lab=1.3,lwd=2,ylim=ylims,main=xmain)
-lines(result[,"time"]/3600,result[,"qair"]*1000,lty=2,lwd=2)
-legend(x="topright",c("qstar","qair"),lwd=2,lty=c(1,2))
+lines(result[,"time"]/3600,result[,"qair"]*1000,lty=3,lwd=2)
+legend(x="topright",c("qstar","qair"),lwd=2,lty=c(1,3))
 
 ylims <- range(result[,c("ra","rv")])
 plot(result[,"time"]/3600,result[,"ra"],type="l",xlab="Time [hour]",ylab="Resistances [s/m]",
-     cex.axis=1.3,cex.lab=1.3,lwd=2,ylim=ylims,main=xmain,col="yellow")
-lines(result[,"time"]/3600,result[,"rv"],lty=1,lwd=2,col="lightgreen")
-legend(x="topright",c("raero","rveg"),lwd=2,lty=c(1),col=c("yellow","lightgreen"))
-dev.copy(png,"T_q_r_VPD.png");dev.off()
+     cex.axis=1.3,cex.lab=1.3,lwd=2,lty=3,ylim=ylims,main=xmain,col="black")
+lines(result[,"time"]/3600,result[,"rv"],lty=1,lwd=2,col="black")
+legend(x="topright",c("r_veg","r_aero"),lwd=2,lty=c(1,3),col=c("black","black"))
 
 # plot with energy fluxes 
 dev.new()
@@ -474,20 +473,17 @@ matplot(result[,"time"]/3600,result[,c("Rnet","LWup","H","LE","G")],type="l",lty
         cex.axis=1.5,cex.lab=1.5,col=c("black","black","orange","blue","darkgreen"),lwd=2,xlab="Time [hr]",ylab="Energy Fluxes [W/m2]")
 legend(x="topright",c("Rnet","LWup","H","LE","G"),col=c("black","black","orange","blue","darkgreen"),lwd=2,lty=c(1,2,1,1,1))
 title(main=xmain)
-dev.copy(png,"Energyfluxes.png");dev.off()
+dev.copy(png,"Energyfluxes.png");dev.off();print("Energyflux.png written out")
 
 # plot soil water content 
 if (soilWTF) {
   dev.new()
-  plot(result[,"time"]/3600,result[,"Wsoil1"],type="l",xlab="Time [hour]",ylab="Soil Volumetric Water Content [m3/m3]",
+  plot(result[,"time"]/3600,result[,"Wsoil1"],type="l",xlab="Time [hour]",ylab="",
        cex.axis=1.3,cex.lab=1.3,lwd=2,main=paste("Soil type =",soiltype,"\n",xmain),col="black",ylim=c(Wwilt,Wfc))
+  mtext(text=expression(paste("Soil Volumetric Water Content [",m^3,"/",m^3,"]",sep="")),line=2,cex=1.3,side=2)
   abline(h=Wsoil2,lty=3,lwd=2)
-  # par(new=TRUE)
-  # plot(result[,"time"]/3600,result[,"beta"],type="l",col="lightgreen",lwd=2,axes=F,xlab="",ylab="",ylim=c(0,1.0))
-  # axis(4,col="lightgreen",col.axis="lightgreen",cex.axis=1.3)
-  # legend(x="bottomright",c("Wsoil1","Wsoil2","beta"),col=c("black","black","lightgreen"),lwd=2,lty=c(1,3,1))
   legend(x="bottomright",c("Wsoil1","Wsoil2"),col=c("black","black"),lwd=2,lty=c(1,3))
-  dev.copy(png,"Wsoil.png");dev.off()
+  dev.copy(png,"Wsoil.png");dev.off();print("Wsoil.png written out")
 } #if (soilWTF)
 
 if (atmrespondTF) {
@@ -495,26 +491,29 @@ if (atmrespondTF) {
   dev.new()
   plot(result[,"time"]/3600,result[,"h"],type="l",xlab="Time [hour]",ylab="ABL height [m]",
        cex.axis=1.3,cex.lab=1.3,lwd=2,main=xmain)
-  dev.copy(png,"ABLht.png");dev.off()
+  dev.copy(png,"ABLht.png");dev.off();print("ABLht.png written out")
 } #if(atmrespondTF){
 
 if (vegcontrolTF) {
   # plot time series of photosynthetic uptake 
   dev.new()
-  plot(result[,"time"]/3600,result[,"An"],type="l",xlab="Time [hour]",ylab="Net Photosynthesis [umole/m2/s]",
-       cex.axis=1.3,cex.lab=1.3,lwd=2,main=xmain)
-  dev.copy(png,"PSN.png");dev.off()
-  
+  plot(result[,"time"]/3600,result[,"An"],type="l",xlab="Time [hour]",ylab="",
+              cex.axis=1.3,cex.lab=1.3,lwd=2,main=xmain)
+  mtext(text=expression(paste("Net Photosynthesis (An) [",mu,"mole ",m^-2," ",s^-1,"]",sep="")),line=2,cex=1.3,side=2)
+  dev.copy(png,"PSN.png");dev.off();print("PSN.png written out")
+    
   # plot time series of CO2 
   dev.new()
   plot(result[,"time"]/3600,result[,"CO2"],type="l",xlab="Time [hour]",ylab="CO2 [ppm]",
        cex.axis=1.3,cex.lab=1.3,lwd=2,main=xmain)
   par(new=T)
   ylims <- range(result[,c("CO2flux.ent","CO2flux.veg")],na.rm=T)
-  plot(result[,"time"]/3600,result[,"CO2flux.veg"],type="l",axes=F,xlab="",ylab="",col="green",ylim=ylims)
-  lines(result[,"time"]/3600,result[,"CO2flux.ent"],col="brown")
-  abline(h=0,lty=3)
-  axis(4,cex.lab=1.3,cex.axis=1.3)
-  dev.copy(png,"CO2.png");dev.off()
+  plot(result[,"time"]/3600,result[,"CO2flux.veg"],type="l",axes=F,xlab="",ylab="",col="darkgray",ylim=ylims,lty=1,lwd=2)
+  lines(result[,"time"]/3600,result[,"CO2flux.ent"],col="darkgray",lty=3,lwd=2)
+  abline(h=0,lty=1,lwd=0.5,col="darkgray")
+  axis(4,cex.lab=1.3,cex.axis=1.3,col="darkgray",col.axis="darkgray")
+  legend(x="topright",c("CO2tot","dCO2.veg","dCO2.ent"),lwd=2,lty=c(1,1,3),
+         col=c("black","darkgray","darkgray"),text.col=c("black","darkgray","darkgray"))
+    dev.copy(png,"CO2.png");dev.off();print("CO2.png written out")
 } #if(vegcontrolTF){
 #################################################
