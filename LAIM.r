@@ -15,7 +15,7 @@ if (!vegcontrolTF & co2budgetTF) stop ("vegcontrolTF needs to be TRUE to track C
 
 #################################################
 # Model timestep and duration
-dt <- 60           # model timestep [s]
+dt <- 30           # model timestep [s]
 t.day <- 2         # run time in days
 tmax <- t.day*24*3600  #maximum time [s]
 DTtol <- 0.01      # tolerance for change in T when solving numerically (if T is within this range, then stop iterating) [oK]
@@ -469,7 +469,7 @@ legend(x="topright",c("r_veg","r_aero"),lwd=2,lty=c(1,3),col=c("black","black"))
 dev.new()
 matplot(result[,"time"]/3600,result[,c("Rnet","LWup","H","LE","G")],type="l",lty=c(1,2,1,1,1),
         cex.axis=1.5,cex.lab=1.5,col=c("black","black","orange","blue","darkgreen"),lwd=2,xlab="Time [hr]",ylab="")
-mtext(text=expression(paste("Energy Fluxes [W ",m^-2,"]",sep="")),line=2,cex=1.4,side=2)
+mtext(text=expression(paste("Energy Fluxes [W ",m^-2,"]",sep="")),line=2.3,cex=1.4,side=2)
 legend(x="topright",c("Rnet","LWup","H","LE","G"),col=c("black","black","orange","blue","darkgreen"),lwd=2,lty=c(1,2,1,1,1))
 title(main=xmain)
 dev.copy(png,"Energyfluxes.png");dev.off();print("Energyflux.png written out")
