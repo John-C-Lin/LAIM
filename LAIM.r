@@ -500,7 +500,9 @@ if (vegcontrolTF) {
               cex.axis=1.3,cex.lab=1.3,lwd=2,main=xmain)
   mtext(text=expression(paste("Net Photosynthesis (An) [",mu,"mole ",m^-2," ",s^-1,"]",sep="")),line=2,cex=1.3,side=2)
   dev.copy(png,"PSN.png");dev.off();print("PSN.png written out")
-    
+} #if(vegcontrolTF){
+
+if (vegcontrolTF&atmrespondTF) {
   # plot time series of CO2 
   dev.new()
   plot(result[,"time"]/3600,result[,"CO2"],type="l",xlab="Time [hour]",ylab="CO2 [ppm]",
@@ -513,6 +515,6 @@ if (vegcontrolTF) {
   axis(4,cex.lab=1.3,cex.axis=1.3,col="darkgray",col.axis="darkgray")
   legend(x="topright",c("CO2tot","dCO2.veg","dCO2.ent"),lwd=2,lty=c(1,1,3),
          col=c("black","darkgray","darkgray"),text.col=c("black","darkgray","darkgray"))
-    dev.copy(png,"CO2.png");dev.off();print("CO2.png written out")
-} #if(vegcontrolTF){
+  dev.copy(png,"CO2.png");dev.off();print("CO2.png written out")
+} #if (vegcontrolTF&atmrespondTF) {
 #################################################
