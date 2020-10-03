@@ -23,6 +23,44 @@ countTmax <- 1000  # max number of times to iterate T calculation
 #################################################
 
 #################################################
+# Load in functions
+if(vegcontrolTF)source("Ball_Berry_Farquhar.r")  #load Ball-Berry + Farquhar coupled stomatal conductance & photosynthesis model  
+
+latentheat <- function(T.c){
+  # Takes temperature [C] and returns value of latent heat of vaporization [J/g]
+  lambda <- 2.501 - 0.0024 * T.c
+  return(lambda * 1000)
+} #latentheat<-function(T.c){
+
+satvap <- function(T.c){
+  # Takes temp in Celsius as argument and returns saturation vapor pressure [Pa]
+  # NOTE:  calls upon function 'latentheat'
+  # 3/19/1998
+  kelvin <- T.c+273.15
+  #return value in [J/g], so multiply by 1000 to convert into [J/kg]
+  lambda <- 1000*latentheat(T.c)
+  #461 is Gas Constant for water vapor [J deg-1 kg-1]
+  #611 & 273.15 are reference vapor pressure and reference temp., respectively
+  saturated <- 611*exp((lambda/461)*((1/273.15)-(1/kelvin)))
+  return(saturated)
+} #satvap<-function(T.c){
+
+# function to calculate aerodynamic resistance
+ra.f <- function(Ur=1,zr=50,z0=z0,d=0,rho=1){
+  #arguments:  Ur is reference windspeed [m/s] at reference height zr
+  #            zr is reference height [m] where Ur applies
+  #            z0 is roughness length [m]; 0.01m is typical value for crop
+  #            d is displacement height [m]
+  #            rho is air density [kg/m^3]
+  k <- 0.4  # von Karman constant
+  
+  CD <- (k^2)/(log((zr-d)/z0))^2  # aerodynamic transfer coefficient
+  ra <- 1/(CD*Ur)                 # aerodynamic resistance [s/m]
+  return(ra)
+} #ra.f<-function(){
+#################################################
+
+#################################################
 # Land surface characteristics
 gvmax <- 1/50      # max vegetation conductance [m/s]; reciprocal of vegetation resistance
 albedo.c <- 0.1    # surface albedo
@@ -127,13 +165,10 @@ names(Ta.c) <- t.hr
 Ta.c[1:length(Ta.c)] <- 5    # override with CONSTANT air temperature [deg-C]
 
 # specific humidity of air:  determine from RH, air temperature
-#qair<-2/1000      #specific humidity of air [g/g]
-#JHD
-#  RH<-1.0     	   #Edited this to force precipitation
-RH<-0.8
-e<-RH*satvap(mean(Ta.c))/100  #vapor pressure [hPa]
-Psurf<-1000     #surface pressure [hPa] 
-qair<-(Rd/Rv)*e/Psurf   #specific humidity [g/g]
+RH <- 0.8
+e <- RH*satvap(mean(Ta.c))/100  #vapor pressure [hPa]
+Psurf <- 1000     #surface pressure [hPa] 
+qair <- (Rd/Rv)*e/Psurf   #specific humidity [g/g]
 Hscale <- 8000    # scale height of atmosphere--i.e., height at which Psurf decays to (1/e) [m]
 hmin <- 200       # minimum height of atmospheric boundary layer [m]
 thetavM0<-(Ta.c[1]+273.15)*(1+0.61*qair) # initial virtual potential temperature [K]; Eq. 1.5.1b of Stull [1988]
@@ -147,43 +182,6 @@ Cair <- 400       # atmospheric CO2 concentration [umole/mole, or ppm]; this is 
 Cabove <- Cair    # CO2 concentration [ppm] above ABL
 #################################################
 
-#################################################
-# --------------Functions-----------------#
-if(vegcontrolTF)source("Ball_Berry_Farquhar.r")  #load Ball-Berry + Farquhar coupled stomatal conductance & photosynthesis model  
-
-latentheat <- function(T.c){
-  # Takes temperature [C] and returns value of latent heat of vaporization [J/g]
-  lambda <- 2.501 - 0.0024 * T.c
-  return(lambda * 1000)
-} #latentheat<-function(T.c){
-
-satvap <- function(T.c){
-  # Takes temp in Celsius as argument and returns saturation vapor pressure [Pa]
-  # NOTE:  calls upon function 'latentheat'
-  # 3/19/1998
-  kelvin <- T.c+273.15
-  #return value in [J/g], so multiply by 1000 to convert into [J/kg]
-  lambda <- 1000*latentheat(T.c)
-  #461 is Gas Constant for water vapor [J deg-1 kg-1]
-  #611 & 273.15 are reference vapor pressure and reference temp., respectively
-  saturated <- 611*exp((lambda/461)*((1/273.15)-(1/kelvin)))
-  return(saturated)
-} #satvap<-function(T.c){
-
-# function to calculate aerodynamic resistance
-ra.f <- function(Ur=1,zr=50,z0=z0,d=0,rho=1){
-  #arguments:  Ur is reference windspeed [m/s] at reference height zr
-  #            zr is reference height [m] where Ur applies
-  #            z0 is roughness length [m]; 0.01m is typical value for crop
-  #            d is displacement height [m]
-  #            rho is air density [kg/m^3]
-  k <- 0.4  # von Karman constant
-
-  CD <- (k^2)/(log((zr-d)/z0))^2  # aerodynamic transfer coefficient
-  ra <- 1/(CD*Ur)                 # aerodynamic resistance [s/m]
-  return(ra)
-} #ra.f<-function(){
-#################################################
 
 # initialize T with equilibrium value (determined through "uniroot")
 f<-function(T,Ta,SWdn,LWdn,albedo,epsilon.s,Tsoil1,Ur,zr,z0,gvmax=gvmax,Psurf=1000,Hscale=8000){
