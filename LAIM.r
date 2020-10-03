@@ -468,7 +468,8 @@ legend(x="topright",c("r_veg","r_aero"),lwd=2,lty=c(1,3),col=c("black","black"))
 # plot with energy fluxes 
 dev.new()
 matplot(result[,"time"]/3600,result[,c("Rnet","LWup","H","LE","G")],type="l",lty=c(1,2,1,1,1),
-        cex.axis=1.5,cex.lab=1.5,col=c("black","black","orange","blue","darkgreen"),lwd=2,xlab="Time [hr]",ylab="Energy Fluxes [W/m2]")
+        cex.axis=1.5,cex.lab=1.5,col=c("black","black","orange","blue","darkgreen"),lwd=2,xlab="Time [hr]",ylab="")
+mtext(text=expression(paste("Energy Fluxes [W ",m^-2,"]",sep="")),line=2,cex=1.4,side=2)
 legend(x="topright",c("Rnet","LWup","H","LE","G"),col=c("black","black","orange","blue","darkgreen"),lwd=2,lty=c(1,2,1,1,1))
 title(main=xmain)
 dev.copy(png,"Energyfluxes.png");dev.off();print("Energyflux.png written out")
@@ -487,7 +488,7 @@ if (soilWTF) {
 if (atmrespondTF) {
   # plot time series of ABL height 
   dev.new()
-  plot(result[,"time"]/3600,result[,"h"],type="l",xlab="Time [hour]",ylab="ABL height [m]",
+  plot(result[,"time"]/3600,result[,"h"],type="l",xlab="Time [hour]",ylab="ABL height h(t) [m]",
        cex.axis=1.3,cex.lab=1.3,lwd=2,main=xmain)
   dev.copy(png,"ABLht.png");dev.off();print("ABLht.png written out")
 } #if(atmrespondTF){
