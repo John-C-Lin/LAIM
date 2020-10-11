@@ -123,7 +123,7 @@ if (tolower(soiltype)=="sandy loam") {
   stop (paste("Need to select valid soil type:",soiltype))  
 }
  
-Lambda <- 5.9       # thermal diffusivity of skin layer [???]
+Lambda <- 5.9       # thermal transfer coefficient of surface layer [W/m2/K]
 # Initialize two-layer (force-restore) soil model, from de Arellano et al. (2015)
 Tsoil2 <- 286       # T of deep soil layer [K] that is constant
 Tsoil1 <- Tsoil2    # T of top soil layer [K] that varies w/ time
