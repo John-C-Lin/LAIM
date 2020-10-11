@@ -94,7 +94,7 @@ if (tolower(soiltype)=="sandy loam") {
   aa <- 0.219    # Clapp & Hornberger (1978) retention parameter a
   bb <- 4.9      # Clapp & Hornberger (1978) retention parameter b
   pp <- 4        # Clapp & Hornberger (1978) retention parameter c
-  rsoil.sat <- 3.56E-6 # saturated soil thermal insulance factor [K m2 J-1]
+  rTsoil.sat <- 3.56E-6 # saturated soil thermal insulance factor [K m2 J-1]
   C1sat <- 0.132
   C2ref <- 1.8 
 } else if (tolower(soiltype)=="sand") {
@@ -105,7 +105,7 @@ if (tolower(soiltype)=="sandy loam") {
   aa <- 0.387    # Clapp & Hornberger (1978) retention parameter a
   bb <- 4.05     # Clapp & Hornberger (1978) retention parameter b
   pp <- 4        # Clapp & Hornberger (1978) retention parameter c
-  rsoil.sat <- 3.222E-6 # saturated soil thermal insulance factor [K m2 J-1]
+  rTsoil.sat <- 3.222E-6 # saturated soil thermal insulance factor [K m2 J-1]
   C1sat <- 0.082
   C2ref <- 3.9 
 } else if (tolower(soiltype)=="clay") {
@@ -116,7 +116,7 @@ if (tolower(soiltype)=="sandy loam") {
   aa <- 0.083    # Clapp & Hornberger (1978) retention parameter a
   bb <- 11.4     # Clapp & Hornberger (1978) retention parameter b
   pp <- 12        # Clapp & Hornberger (1978) retention parameter c
-  rsoil.sat <- 3.6E-6 # saturated soil thermal insulance factor [K m2 J-1]
+  rTsoil.sat <- 3.6E-6 # saturated soil thermal insulance factor [K m2 J-1]
   C1sat <- 0.342
   C2ref <- 0.3 
 } else { 
@@ -349,8 +349,8 @@ while (iterateT) {   #iterate until convergence
 } # while (iterateT) {   #iterate until converge
 
   # heat transport between surface and deep soil layer to update Tsoil1 from CLASS model
-  rsoil <- rsoil.sat * (Wsat/Wsoil2)^(bb/(2*log(10)))
-  Tsoil1 <- Tsoil1 + (rsoil*G - (2*pi/(86400))*(Tsoil1 - Tsoil2))*dt  #Eq. (9.32) of de Arellano et al. (2015)
+  rTsoil <- rTsoil.sat * (Wsat/Wsoil2)^(bb/(2*log(10)))
+  Tsoil1 <- Tsoil1 + (rTsoil*G - (2*pi/(86400))*(Tsoil1 - Tsoil2))*dt  #Eq. (9.32) of de Arellano et al. (2015)
   
   if (soilWTF) {
     # update soil water content, based on CLASS model
