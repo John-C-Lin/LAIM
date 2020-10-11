@@ -46,8 +46,8 @@ DHa.Rd <- 46390     # [J/mole]
 DHa.Jmax <- 43540   # [J/mole]
 
 # High temperature inhibition:  thermal breakdown parameters from Table 11.3 of Bonan (2019)
-DHd <- 150000  # [J/mole]
-DS <- 490      # [J/K/mole]
+DHd <- 150000  # energy of deactivation [J/mole]
+DS <- 490      # entropy term [J/K/mole]
 #################################################
 
 # Apply Arrhenius function to modify physiological parameters, based on leaf T (Eq. 11.34 of Bonan (2019))
