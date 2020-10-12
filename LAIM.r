@@ -128,9 +128,8 @@ Lambda <- 5.9       # thermal transfer coefficient of surface layer [W/m2/K]
 Tsoil2 <- 286       # T of deep soil layer [K] that is constant
 Tsoil1 <- Tsoil2    # T of top soil layer [K] that varies w/ time
 Wsoil2 <- Wfc       # volumetric water concent of deep soil layer [m3/m3]
-#Wsoil2 <- 0.2       # volumetric water concent of deep soil layer [m3/m3]
 Wsoil1 <- Wsoil2    # volumetric water concent of top soil layer [m3/m3]
-d1 <- 0.1
+d1 <- 0.1           # soil depth to which diurnal variations in moisture penetrates [m], from Deardorff [1977]
 #################################################
 
 #################################################
