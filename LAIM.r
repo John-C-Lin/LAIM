@@ -28,8 +28,8 @@ if(vegcontrolTF)source("Ball_Berry_Farquhar.r")  #load Ball-Berry + Farquhar cou
 
 latentheat <- function(T.c){
   # Takes temperature [C] and returns value of latent heat of vaporization [J/g]
-  lambda <- 2.501 - 0.0024 * T.c
-  return(lambda * 1000)
+  Lv <- 2.501 - 0.0024 * T.c
+  return(Lv * 1000)
 } #latentheat<-function(T.c){
 
 satvap <- function(T.c){
@@ -38,10 +38,10 @@ satvap <- function(T.c){
   # 3/19/1998
   kelvin <- T.c+273.15
   #return value in [J/g], so multiply by 1000 to convert into [J/kg]
-  lambda <- 1000*latentheat(T.c)
+  Lv <- 1000*latentheat(T.c)
   #461 is Gas Constant for water vapor [J deg-1 kg-1]
   #611 & 273.15 are reference vapor pressure and reference temp., respectively
-  saturated <- 611*exp((lambda/461)*((1/273.15)-(1/kelvin)))
+  saturated <- 611*exp((Lv/461)*((1/273.15)-(1/kelvin)))
   return(saturated)
 } #satvap<-function(T.c){
 
@@ -201,7 +201,7 @@ f<-function(T,Ta,SWdn,LWdn,albedo,epsilon.s,Tsoil1,Ur,zr,z0,gvmax=gvmax,Psurf=10
   H <- (Cp*rho.surf/(ra))*(T-Ta)   # [W/m2]
 
   # determine latent heat flux
-  lambda <- 1000*latentheat(T-273.15)  # latent heat of vaporization [J/kg]
+  Lv <- 1000*latentheat(T-273.15)  # latent heat of vaporization [J/kg]
   esat <- satvap(T-273.15)/100 # saturation specific humidity [hPa]
   e <- qair*Psurf/(Rd/Rv)      # vapor pressure [hPa]
   VPD <- 100*(esat-e)          # vapor pressure deficit [Pa]
@@ -225,7 +225,7 @@ f<-function(T,Ta,SWdn,LWdn,albedo,epsilon.s,Tsoil1,Ur,zr,z0,gvmax=gvmax,Psurf=10
   An <- An*scale.canopy
   gv <- (1/rv)*scale.canopy
   rv <- 1/gv
-  LE <- (lambda*rho.surf/(ra + rv))*(qstar - qair) #[W/m2]
+  LE <- (Lv*rho.surf/(ra + rv))*(qstar - qair) #[W/m2]
 
   # determine ground heat flux from two-layer (force-restore) soil model to calculate ground heat flux and soil moisture
   G <- Lambda * (T - Tsoil1)
@@ -297,7 +297,7 @@ while (iterateT) {   #iterate until convergence
 
   # determine latent heat flux
   beta <- 1   # water stress parameter (dependent on soil moisture)
-  lambda <- 1000*latentheat(T-273.15)  # latent heat of vaporization [J/kg]
+  Lv <- 1000*latentheat(T-273.15)  # latent heat of vaporization [J/kg]
   esat <- satvap(T-273.15)/100 # saturation specific humidity [hPa]
   e <- qa*Psurf/(Rd/Rv)        # vapor pressure [hPa]
   VPD <- 100*(esat-e)            # vapor pressure deficit [Pa]
@@ -330,7 +330,7 @@ while (iterateT) {   #iterate until convergence
   An <- An*scale.canopy
   gv <- (1/rv)*scale.canopy
   rv <- 1/gv
-  LE <- (lambda*rho.surf/(ra+rv))*(qstar-qa) #[W/m2]
+  LE <- (Lv*rho.surf/(ra+rv))*(qstar-qa) #[W/m2]
   
   # !!! determine RESPIRATION!!!
   Resp <- 0
@@ -358,7 +358,7 @@ while (iterateT) {   #iterate until convergence
     C2 <- C2ref*(Wsoil2/(Wsat - Wsoil2 + Wsmall))  #Eq. (9.36) of de Arellano et al. (2015)
     Wsoil1eq <- Wsoil2 - aa*Wsat*((Wsoil2/Wsat)^pp)*(1-(Wsoil2/Wsat)^(8*pp))  #Eq. (9.37) of de Arellano et al. (2015)
     # Eq. (9.34) of de Arellano et al. (2015); NOTE:  use LE instead of LEsoil as in (9.34), and -1 multiplied by C1 that is missing in (9.34)
-    dWsoil <- ((-C1/(rho.W*d1))*(LE/lambda) - (C2/86400)*(Wsoil1 - Wsoil2))*dt  
+    dWsoil <- ((-C1/(rho.W*d1))*(LE/Lv) - (C2/86400)*(Wsoil1 - Wsoil2))*dt  
     Wsoil1 <- Wsoil1 + dWsoil
     if (Wsoil1 < 0) Wsoil1 <- 0
   } #if (soilWTF) {
@@ -368,10 +368,10 @@ while (iterateT) {   #iterate until convergence
   if (atmrespondTF) {
     #update ABL-averaged q
     #calculate surface virtual heat flux
-    lambda <- latentheat(T-273.15)  # latent heat of vaporization [J/g]
-    E <- LE/lambda   # surface moisture flux [g/m^2/s] 
+    Lv <- latentheat(T-273.15)  # latent heat of vaporization [J/g]
+    E <- LE/Lv   # surface moisture flux [g/m^2/s] 
     F0theta <- H/Cp  # potential heat flux [K-kg/m^2/s]
-    F0thetav <- F0theta+0.073*lambda*E/Cp # virtual heat flux [K-kg/m^2/s]
+    F0thetav <- F0theta+0.073*Lv*E/Cp # virtual heat flux [K-kg/m^2/s]
     if (ABLTF) {
       Fhthetav <- -1*Beta*F0thetav   # closure hypothesis (Eq. 6.15 of Garratt [1992])
       # calculate ABL growth rate
