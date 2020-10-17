@@ -260,6 +260,7 @@ while (tcurr<tmax) {
   if (countp>500) {
     print(paste("-------- tcurr=",round(tcurr/(3600*24)*10)/10,"[days] --------"))
     countp <- 0
+    gc()   # garbage collection to free memory
   } #if (countp>500)
   
   LWup <- epsilon.s*sigma*T^4   # upward longwave radiation [W/m2]
