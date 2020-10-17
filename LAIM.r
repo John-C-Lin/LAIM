@@ -210,7 +210,7 @@ f<-function(T,Ta,SWdn,LWdn,albedo,epsilon.s,Tsoil1,Ur,zr,z0,gvmax=gvmax,Psurf=10
     # Ball-Berry + Farquhar coupled stomatal conductance & photosynthesis model for vegetation resistance [s/m]
     hs <- e/esat  # fractional humidity (=1/RH) at leaf surface [.]
     cs <- Cair  # CO2 concentration at leaf surface [umole/mole]
-    BBFout <- BBF(SW=SWdn,Tleaf.C=T-273.15,hs=hs,beta=1.0,cs=cs,Psurf=Psurf)  
+    BBFout <- BBF(SW=SWdn,Tleaf.C=T-273.15,hs=hs,beta.W=1.0,cs=cs,Psurf=Psurf)  
     gsw <- BBFout["gsw"]  # stomatal conductance with respect to water vapor [mole H2O/m2/s]  
     rho.mole <- rho.surf*1000/Md # air density [kg/m3] => molar density [moles/m3]
     gsw <- gsw/rho.mole   # [mole/m2/s] => [m/s]
@@ -297,7 +297,7 @@ while (iterateT) {   #iterate until convergence
   H <- (Cp*rho.surf/(ra))*(T-Ta)   # [W/m2]
 
   # determine latent heat flux
-  beta <- 1   # water stress parameter (dependent on soil moisture)
+  beta.W <- 1   # water stress parameter (dependent on soil moisture)
   lambda <- 1000*latentheat(T-273.15)  # latent heat of vaporization [J/kg]
   esat <- satvap(T-273.15)/100 # saturation specific humidity [hPa]
   e <- qa*Psurf/(Rd/Rv)        # vapor pressure [hPa]
@@ -306,15 +306,14 @@ while (iterateT) {   #iterate until convergence
   if (vegcontrolTF) {
     if (soilWTF) {
       # Eq. (12.56) of Bonan (2019)
-      beta <- (Wsoil1 - Wwilt)/(Wfc - Wwilt)
-      if (Wsoil1 >= Wfc) beta <- 1.0
-      if (Wsoil1 <= Wwilt) beta <- 0
-      # print(paste("Wsoil1, beta:",round(Wsoil1,4),round(beta,4)))
+      beta.W <- (Wsoil1 - Wwilt)/(Wfc - Wwilt)
+      if (Wsoil1 >= Wfc) beta.W <- 1.0
+      if (Wsoil1 <= Wwilt) beta.W <- 0
     } # if (soilWTF)
     # Ball-Berry + Farquhar coupled stomatal conductance & photosynthesis model for vegetation resistance [s/m]
     hs <- e/esat  # fractional humidity (=1/RH) at leaf surface [.]
     cs <- Cair  # CO2 concentration at leaf surface [umole/mole]
-    BBFout <- BBF(SW=SWdn.t,Tleaf.C=T-273.15,hs=hs,beta=beta,cs=cs,Psurf=Psurf)  
+    BBFout <- BBF(SW=SWdn.t,Tleaf.C=T-273.15,hs=hs,beta.W=beta.W,cs=cs,Psurf=Psurf)  
     gsw <- BBFout["gsw"]  # stomatal conductance with respect to water vapor [mole H2O/m2/s]  
     rho.mole <- rho.surf*1000/Md # air density [kg/m3] => molar density [moles/m3]
     gsw <- gsw/rho.mole   # [mole/m2/s] => [m/s]
