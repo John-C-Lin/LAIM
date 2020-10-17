@@ -502,7 +502,7 @@ if (vegcontrolTF) {
   dev.copy(png,"PSN.png");dev.off();print("PSN.png written out")
 } #if(vegcontrolTF){
 
-if (vegcontrolTF&atmrespondTF) {
+if (vegcontrolTF&atmrespondTF&co2budgetTF) {
   # plot time series of CO2 
   dev.new()
   plot(result[,"time"]/3600,result[,"CO2"],type="l",xlab="Time [hour]",ylab="CO2 [ppm]",
