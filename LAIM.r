@@ -488,8 +488,9 @@ if (soilWTF) {
 if (atmrespondTF) {
   # plot time series of ABL height 
   dev.new()
-  plot(result[,"time"]/3600,result[,"h"],type="l",xlab="Time [hour]",ylab="ABL height h(t) [m]",
-       cex.axis=1.3,cex.lab=1.3,lwd=2,main=xmain)
+  plot(result[,"time"]/3600,result[,"h"],type="l",xlab="Time [hour]",ylab="ABL height  h(t) [m]",
+       cex.axis=1.3,cex.lab=1.3,lwd=2)
+  title(main=paste0(xmain,"\nBeta=",Beta,";  gamma=",signif(gamma,4)," [K/m]"),cex.main=1.2)
   dev.copy(png,"ABLht.png");dev.off();print("ABLht.png written out")
 } #if(atmrespondTF){
 
