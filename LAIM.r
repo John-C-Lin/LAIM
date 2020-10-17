@@ -445,7 +445,7 @@ dev.new(); par(mfrow=c(2,2),cex.main=0.7)
 ylims <- range(result[,c("T","Ta","Tsoil1")]-273.15)
 plot(result[,"time"]/3600,result[,"T"]-273.15,type="l",xlab="Time [hour]",ylab="Temperature [deg-C]",
      cex.axis=1.3,cex.lab=1.3,lwd=2,ylim=ylims,main=xmain)
-lines(result[,"time"]/3600,result[,"Ta"]-273.15,lty=3,lwd=2)
+lines(result[,"time"]/3600,result[,"Ta"]-273.15,lty=3,lwd=1.5)
 lines(result[,"time"]/3600,result[,"Tsoil1"]-273.15,lty=1,lwd=2,col="darkgray")
 legend(x="topright",c("Tsurf","Tair","Tsoil"),lwd=2,lty=c(1,3,1),col=c("black","black","darkgray"))
 
@@ -455,12 +455,12 @@ plot(result[,"time"]/3600,VPD,type="l",xlab="Time [hour]",ylab="VPD [Pa]",lwd=2,
 ylims <- range(result[,c("qstar","qair")]*1000)
 plot(result[,"time"]/3600,result[,"qstar"]*1000,type="l",xlab="Time [hour]",ylab="Specific humidity [g/kg]",
      cex.axis=1.3,cex.lab=1.3,lwd=2,ylim=ylims,main=xmain)
-lines(result[,"time"]/3600,result[,"qair"]*1000,lty=3,lwd=2)
+lines(result[,"time"]/3600,result[,"qair"]*1000,lty=3,lwd=1.5)
 legend(x="topright",c("qstar","qair"),lwd=2,lty=c(1,3))
 
 ylims <- range(result[,c("ra","rv")])
 plot(result[,"time"]/3600,result[,"ra"],type="l",xlab="Time [hour]",ylab="Resistances [s/m]",
-     cex.axis=1.3,cex.lab=1.3,lwd=2,lty=3,ylim=ylims,main=xmain,col="black")
+     cex.axis=1.3,cex.lab=1.3,lwd=1.5,lty=3,ylim=ylims,main=xmain,col="black")
 lines(result[,"time"]/3600,result[,"rv"],lty=1,lwd=2,col="black")
 legend(x="topright",c("r_veg","r_aero"),lwd=2,lty=c(1,3),col=c("black","black"))
 
