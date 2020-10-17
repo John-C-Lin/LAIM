@@ -15,7 +15,7 @@ if (!vegcontrolTF & co2budgetTF) stop ("vegcontrolTF needs to be TRUE to track C
 
 #################################################
 # Model timestep and duration
-dt <- 30           # model timestep [s]
+dt <- 20           # model timestep [s]
 t.day <- 2         # run time in days
 tmax <- t.day*24*3600  #maximum time [s]
 DTtol <- 0.01      # tolerance for change in T when solving numerically (if T is within this range, then stop iterating) [oK]
