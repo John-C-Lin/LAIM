@@ -46,7 +46,7 @@ satvap <- function(T.c){
 } #satvap<-function(T.c){
 
 # function to calculate aerodynamic resistance
-ra.f <- function(Ur=1,zr=50,z0=z0,d=0,rho=1){
+raero.f <- function(Ur=1,zr=50,z0=z0,d=0,rho=1){
   #arguments:  Ur is reference windspeed [m/s] at reference height zr
   #            zr is reference height [m] where Ur applies
   #            z0 is roughness length [m]; 0.01m is typical value for crop
@@ -55,9 +55,9 @@ ra.f <- function(Ur=1,zr=50,z0=z0,d=0,rho=1){
   k <- 0.4  # von Karman constant
   
   CD <- (k^2)/(log((zr-d)/z0))^2  # aerodynamic transfer coefficient
-  ra <- 1/(CD*Ur)                 # aerodynamic resistance [s/m]
-  return(ra)
-} #ra.f<-function(){
+  raero <- 1/(CD*Ur)                 # aerodynamic resistance [s/m]
+  return(raero)
+} #raero.f<-function(){
 #################################################
 
 #################################################
@@ -83,11 +83,11 @@ Cs <- Cp.veg*(rho.veg/1000)*Hveg/100  # heat capacity of vegetation [J/K/m2]
 
 # soil parameters from Clapp & Hornberger (1978); taken from CLASS model (https://github.com/classmodel/modelgui/blob/master/landsoil.cpp)
 # select soil type from one of below
- soiltype <- "Sandy loam"
+soiltype <- "Sandy loam"
 # soiltype <- "Sand"
 # soiltype <- "Clay"
 if (tolower(soiltype)=="sandy loam") {
-# a) Sandy loam soil
+  # a) Sandy loam soil
   Wsat <- 0.472  # saturated volumetric water content [m3/m3]
   Wfc <- 0.323   # volumetric water content at field capacity [m3/m3]
   Wwilt <- 0.171 # volumetric water content at wilting point [m3/m3]
@@ -122,7 +122,7 @@ if (tolower(soiltype)=="sandy loam") {
 } else { 
   stop (paste("Need to select valid soil type:",soiltype))  
 }
- 
+
 Lambda <- 5.9       # thermal transfer coefficient of surface layer [W/m2/K]
 # Initialize two-layer (force-restore) soil model, from de Arellano et al. (2015)
 Tsoil2 <- 286       # T of deep soil layer [K] that is constant
@@ -146,11 +146,11 @@ rho.W <- 1000 # density of water [kg/m3]
 #################################################
 # ---------- External forcing ------------------#
 # Downward shortwave radiation
- t.hr<-0:24
+t.hr<-0:24
 # a) hourly varying SWdn
- SWdn<--15*(t.hr-12)^2+800 # hourly downward shortwave radiation [W/m2]
- names(SWdn)<-t.hr
- SWdn[as.character(c(0:5,19:24))]<-0 # night time:  set to 0
+SWdn<--15*(t.hr-12)^2+800 # hourly downward shortwave radiation [W/m2]
+names(SWdn)<-t.hr
+SWdn[as.character(c(0:5,19:24))]<-0 # night time:  set to 0
 # b) constant SWdn
 # SWdn[1:length(SWdn)]<-1000
 
@@ -197,9 +197,9 @@ f<-function(T,Ta,SWdn,LWdn,albedo,epsilon.s,Tsoil1,Ur,zr,z0,gvmax=gvmax,Psurf=10
   
   # determine sensible heat flux
   rho.surf <- Psurf*100/(Rd*T)   # surface air density [kg/m3]
-  ra <- ra.f(Ur=Ur,zr=zr,z0=z0,rho=rho.surf)
-  H <- (Cp*rho.surf/(ra))*(T-Ta)   # [W/m2]
-
+  raero <- raero.f(Ur=Ur,zr=zr,z0=z0,rho=rho.surf)
+  H <- (Cp*rho.surf/(raero))*(T-Ta)   # [W/m2]
+  
   # determine latent heat flux
   Lv <- 1000*latentheat(T-273.15)  # latent heat of vaporization [J/kg]
   esat <- satvap(T-273.15)/100 # saturation specific humidity [hPa]
@@ -210,23 +210,23 @@ f<-function(T,Ta,SWdn,LWdn,albedo,epsilon.s,Tsoil1,Ur,zr,z0,gvmax=gvmax,Psurf=10
     # Ball-Berry + Farquhar coupled stomatal conductance & photosynthesis model for vegetation resistance [s/m]
     hs <- e/esat  # fractional humidity (=1/RH) at leaf surface [.]
     cs <- Cair  # CO2 concentration at leaf surface [umole/mole]
-    BBFout <- BBF(SW=SWdn,Tleaf.C=T-273.15,hs=hs,beta=1.0,cs=cs,Psurf=Psurf)  
-    gsw <- BBFout["gsw"]  # stomatal conductance with respect to water vapor [mole H2O/m2/s]  
+    BBFout <- BBF(SW=SWdn,Tleaf.C=T-273.15,hs=hs,beta.W=1.0,cs=cs,Psurf=Psurf)  
+    gsv <- BBFout["gsv"]  # stomatal conductance with respect to water vapor [mole H2O/m2/s]  
     rho.mole <- rho.surf*1000/Md # air density [kg/m3] => molar density [moles/m3]
-    gsw <- gsw/rho.mole   # [mole/m2/s] => [m/s]
-    rv <- 1/gsw           # vegetation resistance [s/m]
+    gsv <- gsv/rho.mole   # [mole/m2/s] => [m/s]
+    rveg <- 1/gsv           # vegetation resistance [s/m]
     An <- BBFout["An"]    # Net photosynthesis [umole/m2/s]
     ci <- BBFout["ci"]    # intercellular CO2 [umole/mole]
   } else {
-    rv <- 1/gvmax
+    rveg <- 1/gvmax
   } # if(vegcontrolTF){
   # scale up photosynthesis and stomatal conductance to CANOPY values using Big-Leaf Model, based on Eq. (15.5) of Bonan (2019)
   scale.canopy<-(1-exp(-Kb*LAI))/Kb
   An <- An*scale.canopy
-  gv <- (1/rv)*scale.canopy
-  rv <- 1/gv
-  LE <- (Lv*rho.surf/(ra + rv))*(qstar - qair) #[W/m2]
-
+  gveg <- (1/rveg)*scale.canopy
+  rveg <- 1/gveg
+  LE <- (Lv*rho.surf/(raero + rveg))*(qstar - qair) #[W/m2]
+  
   # determine ground heat flux from two-layer (force-restore) soil model to calculate ground heat flux and soil moisture
   G <- Lambda * (T - Tsoil1)
   
@@ -260,93 +260,93 @@ while (tcurr<tmax) {
   if (countp>500) {
     print(paste("-------- tcurr=",round(tcurr/(3600*24)*10)/10,"[days] --------"))
     countp <- 0
+    gc()   # garbage collection to free memory
   } #if (countp>500)
   
   LWup <- epsilon.s*sigma*T^4   # upward longwave radiation [W/m2]
   LWdn.t <- approx(x=as.numeric(names(LWdn))*3600,y=LWdn,xout=tcurr%%(24*3600))$y  # downward shortwave radiation [W/m2]
   if (cloudTF) {
-	  RHe <- 0.5			# fitting parameter sets TCC to gain at approximately 60% humidity
-	  esat <- satvap(T-273.15)/100 # saturation specific humidity [hPa]
-	  e <- qa*Psurf/(Rd/Rv)        # vapor pressure [hPa]
-	  qstar <- (Rd/Rv)*esat/Psurf    # saturation specific humidity [g/g]
-	  tcc <- min(exp((qM/qstar-1)/(1-RHe)),1) 	# Walcek 1994 model equation (1) 	
-	  LWdn.t<- LWup-100+80*(tcc)
-	  albedo <- albedo.c+0.75*(tcc)
-	} #if (cloudTF)
+    RHe <- 0.5			# fitting parameter sets TCC to gain at approximately 60% humidity
+    esat <- satvap(T-273.15)/100 # saturation specific humidity [hPa]
+    e <- qa*Psurf/(Rd/Rv)        # vapor pressure [hPa]
+    qstar <- (Rd/Rv)*esat/Psurf    # saturation specific humidity [g/g]
+    tcc <- min(exp((qM/qstar-1)/(1-RHe)),1) 	# Walcek 1994 model equation (1) 	
+    LWdn.t<- LWup-100+80*(tcc)
+    albedo <- albedo.c+0.75*(tcc)
+  } #if (cloudTF)
   SWdn.t <- approx(x=as.numeric(names(SWdn))*3600,y=SWdn,xout=tcurr%%(24*3600))$y  # downward shortwave radiation [W/m2]
   SWup <- albedo*SWdn.t
   # determine net radiation
   Rnet <- SWdn.t-SWup+LWdn.t-LWup
-
+  
   countT <- 0; iterateT <- TRUE
-while (iterateT) {   #iterate until convergence
-  countT <- countT + 1
-  if(countT > countTmax)stop("T does not converge")
+  while (iterateT) {   #iterate until convergence
+    countT <- countT + 1
+    if(countT > countTmax)stop("T does not converge")
     
-  if (atmrespondTF) {
-    Ta <- thetaM   
-    qa <- qM
-  } else {
-    Ta <- approx(x=as.numeric(names(Ta.c))*3600,y=Ta.c,xout=tcurr%%(24*3600))$y+273.15  #use prescribed value
-    qa <- qair
-  } # if(atmrespondTF){
-  # determine sensible heat flux
-  rho.surf <- Psurf*100/(Rd*T)   # surface air density [kg/m3]
-  ra <- ra.f(Ur=Ur,zr=zr,z0=z0,rho=rho.surf)
-  H <- (Cp*rho.surf/(ra))*(T-Ta)   # [W/m2]
-
-  # determine latent heat flux
-  beta <- 1   # water stress parameter (dependent on soil moisture)
-  Lv <- 1000*latentheat(T-273.15)  # latent heat of vaporization [J/kg]
-  esat <- satvap(T-273.15)/100 # saturation specific humidity [hPa]
-  e <- qa*Psurf/(Rd/Rv)        # vapor pressure [hPa]
-  VPD <- 100*(esat-e)            # vapor pressure deficit [Pa]
-  qstar <- (Rd/Rv)*esat/Psurf    # saturation specific humidity [g/g]
-  if (vegcontrolTF) {
-    if (soilWTF) {
-      # Eq. (12.56) of Bonan (2019)
-      beta <- (Wsoil1 - Wwilt)/(Wfc - Wwilt)
-      if (Wsoil1 >= Wfc) beta <- 1.0
-      if (Wsoil1 <= Wwilt) beta <- 0
-      # print(paste("Wsoil1, beta:",round(Wsoil1,4),round(beta,4)))
-    } # if (soilWTF)
-    # Ball-Berry + Farquhar coupled stomatal conductance & photosynthesis model for vegetation resistance [s/m]
-    hs <- e/esat  # fractional humidity (=1/RH) at leaf surface [.]
-    cs <- Cair  # CO2 concentration at leaf surface [umole/mole]
-    BBFout <- BBF(SW=SWdn.t,Tleaf.C=T-273.15,hs=hs,beta=beta,cs=cs,Psurf=Psurf)  
-    gsw <- BBFout["gsw"]  # stomatal conductance with respect to water vapor [mole H2O/m2/s]  
-    rho.mole <- rho.surf*1000/Md # air density [kg/m3] => molar density [moles/m3]
-    gsw <- gsw/rho.mole   # [mole/m2/s] => [m/s]
-    rv <- 1/gsw        # vegetation resistance [s/m]
-    An <- BBFout["An"]    # Net photosynthesis [umole/m2/s]
-    ci <- BBFout["ci"]    # intercellular CO2 [umole/mole]
-  } else {
-    rv <- 1/gvmax
-    An <- NA; ci <- NA
-  } # if(vegcontrolTF){
+    if (atmrespondTF) {
+      Ta <- thetaM   
+      qa <- qM
+    } else {
+      Ta <- approx(x=as.numeric(names(Ta.c))*3600,y=Ta.c,xout=tcurr%%(24*3600))$y+273.15  #use prescribed value
+      qa <- qair
+    } # if(atmrespondTF){
+    # determine sensible heat flux
+    rho.surf <- Psurf*100/(Rd*T)   # surface air density [kg/m3]
+    raero <- raero.f(Ur=Ur,zr=zr,z0=z0,rho=rho.surf)
+    H <- (Cp*rho.surf/(raero))*(T-Ta)   # [W/m2]
+    
+    # determine latent heat flux
+    beta.W <- 1   # water stress parameter (dependent on soil moisture)
+    Lv <- 1000*latentheat(T-273.15)  # latent heat of vaporization [J/kg]
+    esat <- satvap(T-273.15)/100 # saturation specific humidity [hPa]
+    e <- qa*Psurf/(Rd/Rv)        # vapor pressure [hPa]
+    VPD <- 100*(esat-e)            # vapor pressure deficit [Pa]
+    qstar <- (Rd/Rv)*esat/Psurf    # saturation specific humidity [g/g]
+    if (vegcontrolTF) {
+      if (soilWTF) {
+        # Eq. (12.56) of Bonan (2019)
+        beta.W <- (Wsoil1 - Wwilt)/(Wfc - Wwilt)
+        if (Wsoil1 >= Wfc) beta.W <- 1.0
+        if (Wsoil1 <= Wwilt) beta.W <- 0
+      } # if (soilWTF)
+      # Ball-Berry + Farquhar coupled stomatal conductance & photosynthesis model for vegetation resistance [s/m]
+      hs <- e/esat  # fractional humidity (=1/RH) at leaf surface [.]
+      cs <- Cair  # CO2 concentration at leaf surface [umole/mole]
+      BBFout <- BBF(SW=SWdn.t,Tleaf.C=T-273.15,hs=hs,beta.W=beta.W,cs=cs,Psurf=Psurf)  
+      gsv <- BBFout["gsv"]  # stomatal conductance with respect to water vapor [mole H2O/m2/s]  
+      rho.mole <- rho.surf*1000/Md # air density [kg/m3] => molar density [moles/m3]
+      gsv <- gsv/rho.mole   # [mole/m2/s] => [m/s]
+      rveg <- 1/gsv        # vegetation resistance [s/m]
+      An <- BBFout["An"]    # Net photosynthesis [umole/m2/s]
+      ci <- BBFout["ci"]    # intercellular CO2 [umole/mole]
+    } else {
+      rveg <- 1/gvmax
+      An <- NA; ci <- NA
+    } # if(vegcontrolTF){
+    
+    # scale up photosynthesis and stomatal conductance to CANOPY values using Big-Leaf Model, based on Eq. (15.5) of Bonan (2019)
+    scale.canopy<-(1-exp(-Kb*LAI))/Kb
+    An <- An*scale.canopy
+    gv <- (1/rveg)*scale.canopy
+    rveg <- 1/gv
+    LE <- (Lv*rho.surf/(raero+rveg))*(qstar-qa) #[W/m2]
+    
+    # !!! determine RESPIRATION!!!
+    Resp <- 0
+    
+    # determine ground heat flux 
+    # use two-layer (force-restore) soil model to calculate ground heat flux and soil moisture
+    G <- Lambda * (T - Tsoil1)
+    
+    Storage <- Rnet - LE - H - G
+    # update temperature 
+    DT <- (Storage/Cs)*dt
+    T <- T+DT
+    #print(paste("iterating so that T converges:",countT,paste("T =",signif(T,5)),signif(DT,4)))
+    iterateT <- abs(DT)>DTtol   # continue iterating until T converges
+  } # while (iterateT) {   #iterate until converge
   
-  # scale up photosynthesis and stomatal conductance to CANOPY values using Big-Leaf Model, based on Eq. (15.5) of Bonan (2019)
-  scale.canopy<-(1-exp(-Kb*LAI))/Kb
-  An <- An*scale.canopy
-  gv <- (1/rv)*scale.canopy
-  rv <- 1/gv
-  LE <- (Lv*rho.surf/(ra+rv))*(qstar-qa) #[W/m2]
-  
-  # !!! determine RESPIRATION!!!
-  Resp <- 0
-  
-  # determine ground heat flux 
-  # use two-layer (force-restore) soil model to calculate ground heat flux and soil moisture
-  G <- Lambda * (T - Tsoil1)
-  
-  Storage <- Rnet - LE - H - G
-  # update temperature 
-  DT <- (Storage/Cs)*dt
-  T <- T+DT
-  #print(paste("iterating so that T converges:",countT,paste("T =",signif(T,5)),signif(DT,4)))
-  iterateT <- abs(DT)>DTtol   # continue iterating until T converges
-} # while (iterateT) {   #iterate until converge
-
   # heat transport between surface and deep soil layer to update Tsoil1 from CLASS model
   rTsoil <- rTsoil.sat * (Wsat/Wsoil2)^(bb/(2*log(10)))
   Tsoil1 <- Tsoil1 + (rTsoil*G - (2*pi/(86400))*(Tsoil1 - Tsoil2))*dt  #Eq. (9.32) of de Arellano et al. (2015)
@@ -414,14 +414,14 @@ while (iterateT) {   #iterate until convergence
     if (F0thetav<=0.00&ABLTF) h<-hmin # override value:  ABL collapses
   } # if(atmrespondTF){
   
-  tmp <- c(tcurr,T,Ta,Tsoil1,Wsoil1,beta,LWup,Rnet,H,LE,G,DT,qstar,qa,ra,rv,An,ci,h,qM,thetavM,thetaM,Cair,CO2flux.veg,CO2flux.ent,CO2flux.tot)
+  tmp <- c(tcurr,T,Ta,Tsoil1,Wsoil1,beta.W,LWup,Rnet,H,LE,G,DT,qstar,qa,raero,rveg,An,ci,h,qM,thetavM,thetaM,Cair,CO2flux.veg,CO2flux.ent,CO2flux.tot)
   result_s <- rbind(result_s,tmp)
   tcurr <- tcurr + min(c(dt,tmax-tcurr))
 } # while(tcurr<ttmax){
 #---------------------------------------Time Loop END ------------------------------------------#
 result <- result_s[-1,]   # remove initial value
-dimnames(result) <- list(NULL,c("time","T","Ta","Tsoil1","Wsoil1","beta","LWup","Rnet","H","LE","G","DT",
-                              "qstar","qair","ra","rv","An","ci","h","qM","thetavM","thetaM","CO2","CO2flux.veg","CO2flux.ent","CO2flux.tot"))
+dimnames(result) <- list(NULL,c("time","T","Ta","Tsoil1","Wsoil1","beta.W","LWup","Rnet","H","LE","G","DT",
+                                "qstar","qair","raero","rveg","An","ci","h","qM","thetavM","thetaM","CO2","CO2flux.veg","CO2flux.ent","CO2flux.tot"))
 filenm <- "result.csv"
 write.csv(result,file=filenm)
 print(paste(filenm,"written out"))
@@ -445,7 +445,7 @@ dev.new(); par(mfrow=c(2,2),cex.main=0.7)
 ylims <- range(result[,c("T","Ta","Tsoil1")]-273.15)
 plot(result[,"time"]/3600,result[,"T"]-273.15,type="l",xlab="Time [hour]",ylab="Temperature [deg-C]",
      cex.axis=1.3,cex.lab=1.3,lwd=2,ylim=ylims,main=xmain)
-lines(result[,"time"]/3600,result[,"Ta"]-273.15,lty=3,lwd=2)
+lines(result[,"time"]/3600,result[,"Ta"]-273.15,lty=3,lwd=1.5)
 lines(result[,"time"]/3600,result[,"Tsoil1"]-273.15,lty=1,lwd=2,col="darkgray")
 legend(x="topright",c("Tsurf","Tair","Tsoil"),lwd=2,lty=c(1,3,1),col=c("black","black","darkgray"))
 
@@ -455,13 +455,13 @@ plot(result[,"time"]/3600,VPD,type="l",xlab="Time [hour]",ylab="VPD [Pa]",lwd=2,
 ylims <- range(result[,c("qstar","qair")]*1000)
 plot(result[,"time"]/3600,result[,"qstar"]*1000,type="l",xlab="Time [hour]",ylab="Specific humidity [g/kg]",
      cex.axis=1.3,cex.lab=1.3,lwd=2,ylim=ylims,main=xmain)
-lines(result[,"time"]/3600,result[,"qair"]*1000,lty=3,lwd=2)
+lines(result[,"time"]/3600,result[,"qair"]*1000,lty=3,lwd=1.5)
 legend(x="topright",c("qstar","qair"),lwd=2,lty=c(1,3))
 
-ylims <- range(result[,c("ra","rv")])
-plot(result[,"time"]/3600,result[,"ra"],type="l",xlab="Time [hour]",ylab="Resistances [s/m]",
-     cex.axis=1.3,cex.lab=1.3,lwd=2,lty=3,ylim=ylims,main=xmain,col="black")
-lines(result[,"time"]/3600,result[,"rv"],lty=1,lwd=2,col="black")
+ylims <- range(result[,c("raero","rveg")])
+plot(result[,"time"]/3600,result[,"raero"],type="l",xlab="Time [hour]",ylab="Resistances [s/m]",
+     cex.axis=1.3,cex.lab=1.3,lwd=1.5,lty=3,ylim=ylims,main=xmain,col="black")
+lines(result[,"time"]/3600,result[,"rveg"],lty=1,lwd=2,col="black")
 legend(x="topright",c("r_veg","r_aero"),lwd=2,lty=c(1,3),col=c("black","black"))
 
 # plot with energy fluxes 
@@ -487,8 +487,9 @@ if (soilWTF) {
 if (atmrespondTF) {
   # plot time series of ABL height 
   dev.new()
-  plot(result[,"time"]/3600,result[,"h"],type="l",xlab="Time [hour]",ylab="ABL height h(t) [m]",
-       cex.axis=1.3,cex.lab=1.3,lwd=2,main=xmain)
+  plot(result[,"time"]/3600,result[,"h"],type="l",xlab="Time [hour]",ylab="ABL height  h(t) [m]",
+       cex.axis=1.3,cex.lab=1.3,lwd=2)
+  title(main=paste0(xmain,"\nBeta=",Beta,";  gamma=",signif(gamma,4)," [K/m]"),cex.main=1.2)
   dev.copy(png,"ABLht.png");dev.off();print("ABLht.png written out")
 } #if(atmrespondTF){
 
@@ -496,12 +497,12 @@ if (vegcontrolTF) {
   # plot time series of photosynthetic uptake 
   dev.new()
   plot(result[,"time"]/3600,result[,"An"],type="l",xlab="Time [hour]",ylab="",
-              cex.axis=1.3,cex.lab=1.3,lwd=2,main=xmain)
+       cex.axis=1.3,cex.lab=1.3,lwd=2,main=xmain)
   mtext(text=expression(paste("Net Photosynthesis (An) [",mu,"mole ",m^-2," ",s^-1,"]",sep="")),line=2,cex=1.3,side=2)
   dev.copy(png,"PSN.png");dev.off();print("PSN.png written out")
 } #if(vegcontrolTF){
 
-if (vegcontrolTF&atmrespondTF) {
+if (vegcontrolTF&atmrespondTF&co2budgetTF) {
   # plot time series of CO2 
   dev.new()
   plot(result[,"time"]/3600,result[,"CO2"],type="l",xlab="Time [hour]",ylab="CO2 [ppm]",
