@@ -421,6 +421,7 @@ xmain <- paste("vegcontrolTF=",vegcontrolTF)
 xmain <- paste(xmain,"  atmrespondTF=",atmrespondTF)
 xmain <- paste(xmain,"\nABLTF=",ABLTF)
 xmain <- paste(xmain,"  soilWTF=",soilWTF)
+xmain <- paste(xmain,"\ndt=",dt,"[s]")
 # regenerate VPD from qstar and qair 
 e <- result[,"qair"]*Psurf/(Rd/Rv)      # vapor pressure [hPa]
 esat <- result[,"qstar"]*Psurf*(Rv/Rd)  # saturation vapor pressure [hPa]
@@ -465,7 +466,7 @@ dev.copy(png,"Energyfluxes.png");dev.off();print("Energyflux.png written out")
 # plot soil water content 
 if (soilWTF) {
   dev.new()
-  plot(result[,"time"]/3600,result[,"Wsoil1"],type="l",xlab="Time [hour]",ylab="",
+  plot(result[,"time"]/3600,result[,"Wsoil1"],type="l",xlab="Time [hour]",ylab="",cex.main=1.0,
        cex.axis=1.3,cex.lab=1.3,lwd=2,main=paste("Soil type =",soiltype,"\n",xmain),col="black",ylim=c(Wwilt,Wfc))
   mtext(text=expression(paste("Soil Volumetric Water Content [",m^3,"/",m^3,"]",sep="")),line=2,cex=1.3,side=2)
   abline(h=Wsoil2,lty=3,lwd=2)
@@ -478,7 +479,7 @@ if (atmrespondTF) {
   dev.new()
   plot(result[,"time"]/3600,result[,"h"],type="l",xlab="Time [hour]",ylab="ABL height  h(t) [m]",
        cex.axis=1.3,cex.lab=1.3,lwd=2)
-  title(main=paste0(xmain,"\nBeta=",Beta,";  gamma=",signif(gamma,4)," [K/m]"),cex.main=1.2)
+  title(main=paste0(xmain,";  Beta=",Beta,";  gamma=",signif(gamma,4)," [K/m]"),cex.main=1.2)
   dev.copy(png,"ABLht.png");dev.off();print("ABLht.png written out")
 } #if(atmrespondTF){
 
