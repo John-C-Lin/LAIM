@@ -17,7 +17,7 @@ if (!vegcontrolTF & co2budgetTF) stop ("vegcontrolTF needs to be TRUE to track C
 #################################################
 # Model timestep and duration
 dt <- 20           # model timestep [s]
-t.day <- 1         # run time in days
+t.day <- 2         # run time in days
 tmax <- t.day*24*3600  #maximum time [s]
 times <- seq(0,tmax,dt) #vector of time steps [s]
 DTtol <- 0.01      # tolerance for change in T when solving numerically (if T is within this range, then stop iterating) [oK]
@@ -167,18 +167,19 @@ LWdn_DAY <- LWdn
 Ta.c<- -0.5*(t.hr-12)^2+30  # PRESCRIBED air temperature [deg-C]
 names(Ta.c) <- t.hr
 Ta.c[1:length(Ta.c)] <- 5    # override with CONSTANT air temperature [deg-C]
+Ta.c_DAY <- Ta.c
 
 # specific humidity of air:  determine from RH, air temperature
 RH <- 0.8
 e <- RH*satvap(mean(Ta.c))/100  #vapor pressure [hPa]
 Psurf <- 1000     #surface pressure [hPa] 
-qair <- (Rd/Rv)*e/Psurf   #specific humidity [g/g]
+qair.presc <- (Rd/Rv)*e/Psurf   #prescribed specific humidity [g/g]
 Hscale <- 8000    # scale height of atmosphere--i.e., height at which Psurf decays to (1/e) [m]
 hmin <- 200       # minimum height of atmospheric boundary layer [m]
-thetavM0<-(Ta.c[1]+273.15)*(1+0.61*qair) # initial virtual potential temperature [K]; Eq. 1.5.1b of Stull [1988]
+thetavM0<-(Ta.c[1]+273.15)*(1+0.61*qair.presc) # initial virtual potential temperature [K]; Eq. 1.5.1b of Stull [1988]
 Beta <- 0.2       # closure hypothesis:  fraction of surface virtual potential temperature flux that determines entrainment heat flux
 gamma <- 5/1000   # slope of thetav above growing ABL [K/m]
-qabove <- qair/5  # specific humidity of air above ABL [g/g]
+qabove <- qair.presc/5  # specific humidity of air above ABL [g/g]
 W <- 0            # subsidence rate [m/s]
 Ur <- 1           # reference windspeed [m/s] at reference height zr
 zr <- 50          # reference height [m] where Ur applies
@@ -208,7 +209,7 @@ f<-function(T,Ta,SWdn,LWdn,albedo,epsilon.s,Tsoil1,Ur,zr,z0,gvmax=gvmax,Psurf=10
   # determine latent heat flux
   Lv <- 1000*latentheat(T-273.15)  # latent heat of vaporization [J/kg]
   esat <- satvap(T-273.15)/100 # saturation specific humidity [hPa]
-  e <- qair*Psurf/(Rd/Rv)      # vapor pressure [hPa]
+  e <- qair.presc*Psurf/(Rd/Rv)      # vapor pressure [hPa]
   VPD <- 100*(esat-e)          # vapor pressure deficit [Pa]
   qstar <- (Rd/Rv)*esat/Psurf  # saturation specific humidity [g/g]
   if (vegcontrolTF) {
@@ -230,7 +231,7 @@ f<-function(T,Ta,SWdn,LWdn,albedo,epsilon.s,Tsoil1,Ur,zr,z0,gvmax=gvmax,Psurf=10
   An <- An*scale.canopy
   gveg <- (1/rveg)*scale.canopy
   rveg <- 1/gveg
-  LE <- (Lv*rho.surf/(raero + rveg))*(qstar - qair) #[W/m2]
+  LE <- (Lv*rho.surf/(raero + rveg))*(qstar - qair.presc) #[W/m2]
   
   # determine ground heat flux from two-layer (force-restore) soil model to calculate ground heat flux and soil moisture
   G <- Lambda * (T - Tsoil1)
@@ -252,19 +253,33 @@ print(paste("Tinit [oC]:",signif(Tinit-273.15,5),";   Rn-H-LE-G =",signif(tmp,4)
 #--------------------------------- ODE ODE ODE ODE ODE ODE ODE ODE ODE ODE ---------------------------------#
 ############################
 # initialize state variables
-qstar=NA, qa=NA, qM=NA, thetavM=NA, thetaM=NA, raero=NA, rveg=NA, An=NA, ci=NA, Cair=NA, CO2flux.veg=NA, CO2flux.ent=NA, CO2flux.tot=NA)    
 
 thetaM <- Ta.c[1]+273.15
-qM <- qair   # initialize with prescribed specific humidity [g/g]
-if (atmrespondTF) {qa <- qM} else {qa <- qair} 
+qM <- qair.presc   # initialize with prescribed specific humidity [g/g]
+if (atmrespondTF) {qa <- qM} else {qa <- qair.presc} 
 thetavM <- thetaM*(1+0.61*qM)   # virtual potential temperature [K];  Eq. 1.5.1b of Stull [1988]
 
 yini <- c(T = Tinit, Ta = Ta.c[1]+273.15, qM=qM, thetavM=thetavM,
           Tsoil1 = Tsoil1, Wsoil1=Wsoil1, h=hmin) 
-names(yini) <- c("T","Ta","Tsoil1","Wsoil1","h")
-parms <- c(dt,vegcontrolTF=vegcontrolTF,atmresopndTF=atmrespondTF,ABLTF=ABLTF,cloudTF=cloudTF,soilWTF=soilWTF,co2budgetTF=co2budgetTF)
+names(yini) <- c("T","Ta","<qa>","<thetav>","Tsoil1","Wsoil1","h")
 
-LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY){
+############################
+# initialize parameters
+# 0. numerical parameters
+parms <- c(dt=dt,DTtol=DTtol,countTmax=countTmax)
+# 1.  flags
+parms <- c(parms,vegcontrolTF=vegcontrolTF,atmresopndTF=atmrespondTF,ABLTF=ABLTF,cloudTF=cloudTF,soilWTF=soilWTF,co2budgetTF=co2budgetTF)
+# 2.  atmospheric conditions 
+parms <- c(parms,Psurf=Psurf,qair.presc=qair.presc,Hscale=Hscale,hmin=hmin,Beta=Beta,gamma=gamma,W=W,Ur=Ur,zr=zr,Cair=Cair,Cabove=Cabove)
+# 3.  land surface characteristics
+parms <- c(parms,gvmax=gvmax,albedo=albedo,z0=z0,epsilon.s=epsilon.s,LAI=LAI,Kb=Kb,Hveg=Hveg,rho.veg=rho.veg,Cp.veg=Cp.veg,Cs=Cs)
+# 4.  soil characteristics
+parms <- c(parms,Wsat=Wsat,Wfc=Wfc,Wwilt=Wwilt,aa=aa,bb=bb,pp=pp,rTsoil.sat=rTsoil.sat,C1sat=C1sat,C2ref=C2ref,Lambda=Lambda,Tsoil2=Tsoil2,Wsoil2=Wsoil2,d1=d1)
+
+############################
+# define LAIM model function (what happens each time step)
+LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
+  ####################
   # Physical constants
   Cp <- 1005.7;Cv <- 719 # heat capacities @ constant pressure & volume [J/kg/K] (Appendix 2 of Emanuel (1994)
   g <- 9.80665 # standard surface gravity [m/s2]
@@ -273,60 +288,232 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY){
   sigma <- 5.670373E-8    # Stefan-Boltzmann constant [W/m2/K4]
   Md <- 28.97  #molar mass of dry air [g/mole]
   rho.W <- 1000 # density of water [kg/m3]
+  ####################
   
+  if(((time/3600)%%1)==0) print(paste("Running model: time=",time/3600,"[hr]"))
   with(as.list(c(state,parms)),{
     
-    # LWup <- epsilon.s*sigma*T^4   # upward longwave radiation [W/m2]
-    LWdn.t <- approx(x=as.numeric(names(LWdn_DAY))*3600,y=LWdn_DAY,xout=time%%(24*3600))$y  # downward shortwave radiation [W/m2]
-    SWdn.t <- approx(x=as.numeric(names(SWdn_DAY))*3600,y=SWdn_DAY,xout=time%%(24*3600))$y  # downward shortwave radiation [W/m2]
-    #SWup <- albedo*SWdn.t
-    # determine net radiation
-    #Rnet <- SWdn.t-SWup+LWdn.t-LWup
+  LWup <- epsilon.s*sigma*T^4   # upward longwave radiation [W/m2]
+  LWdn.t <- approx(x=as.numeric(names(LWdn_DAY))*3600,y=LWdn_DAY,xout=time%%(24*3600))$y  # downward shortwave radiation [W/m2]
+  SWdn.t <- approx(x=as.numeric(names(SWdn_DAY))*3600,y=SWdn_DAY,xout=time%%(24*3600))$y  # downward shortwave radiation [W/m2]
+  SWup <- albedo*SWdn.t
+  # determine net radiation
+  Rnet <- SWdn.t-SWup+LWdn.t-LWup
     
-    #variables that aren't integrated with time
-    Rn <- 5*time
-    if(vegcontrolTF){
-      H <- cos(time*2*pi/(24*3600))
-    } else { 
-      H <- sin(time*2*pi/(24*3600))
-    }
-    LE <- 15
+  countT <- 0; iterateT <- TRUE
+  while (iterateT) {   #iterate until convergence
+    countT <- countT + 1
+    if(countT > countTmax)stop("T does not converge")
+      
+    if (atmrespondTF) {
+      thetaM <- thetavM/(1+0.61*qM) 
+      Ta <- thetaM   
+      qa <- qM
+    } else {
+      Ta <- approx(x=as.numeric(names(Ta.c_DAY))*3600,y=Ta.c_DAY,xout=time%%(24*3600))$y+273.15  #use prescribed value
+      qa <- qair.presc
+    } # if(atmrespondTF){
     
-    #derivatives of variables
-    DT <- 2*sigma
-    DTa <- 2
-    DTsoil1 <- 0
-    DWsoil1 <- -2
-    Dh <- hmin
+    # determine sensible heat flux
+    rho.surf <- Psurf*100/(Rd*T)   # surface air density [kg/m3]
+    raero <- raero.f(Ur=Ur,zr=zr,z0=z0,rho=rho.surf)
+    H <- (Cp*rho.surf/(raero))*(T-Ta)   # [W/m2]
+      
+    # determine latent heat flux
+    beta.W <- 1   # water stress parameter (dependent on soil moisture)
+    Lv <- 1000*latentheat(T-273.15)  # latent heat of vaporization [J/kg]
+    esat <- satvap(T-273.15)/100 # saturation specific humidity [hPa]
+    e <- qa*Psurf/(Rd/Rv)        # vapor pressure [hPa]
+    VPD <- 100*(esat-e)            # vapor pressure deficit [Pa]
+    qstar <- (Rd/Rv)*esat/Psurf    # saturation specific humidity [g/g]
+    if (vegcontrolTF) {
+      if (soilWTF) {
+        # Eq. (12.56) of Bonan (2019)
+        beta.W <- (Wsoil1 - Wwilt)/(Wfc - Wwilt)
+        if (Wsoil1 >= Wfc) beta.W <- 1.0
+        if (Wsoil1 <= Wwilt) beta.W <- 0
+      } # if (soilWTF)
+      # Ball-Berry + Farquhar coupled stomatal conductance & photosynthesis model for vegetation resistance [s/m]
+      hs <- e/esat  # fractional humidity (=1/RH) at leaf surface [.]
+      cs <- Cair  # CO2 concentration at leaf surface [umole/mole]
+      BBFout <- BBF(SW=SWdn.t,Tleaf.C=T-273.15,hs=hs,beta.W=beta.W,cs=cs,Psurf=Psurf)  
+      gsv <- BBFout["gsv"]  # stomatal conductance with respect to water vapor [mole H2O/m2/s]  
+      rho.mole <- rho.surf*1000/Md # air density [kg/m3] => molar density [moles/m3]
+      gsv <- gsv/rho.mole   # [mole/m2/s] => [m/s]
+      rveg <- 1/gsv        # vegetation resistance [s/m]
+      An <- BBFout["An"]    # Net photosynthesis [umole/m2/s]
+      ci <- BBFout["ci"]    # intercellular CO2 [umole/mole]
+    } else {
+      rveg <- 1/gvmax
+      An <- NA; ci <- NA
+    } # if(vegcontrolTF){
+      
+    # scale up photosynthesis and stomatal conductance to CANOPY values using Big-Leaf Model, based on Eq. (15.5) of Bonan (2019)
+    scale.canopy<-(1-exp(-Kb*LAI))/Kb
+    An <- An*scale.canopy
+    gv <- (1/rveg)*scale.canopy
+    rveg <- 1/gv
+    LE <- (Lv*rho.surf/(raero+rveg))*(qstar-qa) #[W/m2]
+      
+    # !!! determine RESPIRATION!!!
+    Resp <- 0
+      
+    # determine ground heat flux 
+    # use two-layer (force-restore) soil model to calculate ground heat flux and soil moisture
+    G <- Lambda * (T - Tsoil1)
+      
+    Storage <- Rnet - LE - H - G
+    # update temperature 
+    DT <- (Storage/Cs)*dt
+    T <- T+DT
+    #print(paste("iterating so that T converges:",countT,paste("T =",signif(T,5)),signif(DT,4)))
+    iterateT <- abs(DT)>DTtol   # continue iterating until T converges
+  } # while (iterateT) {   #iterate until converge
     
-    vars2<-c(SWdn=SWdn.t,LWdn=LWdn.t,Rn=Rn,H=H,LE=LE)
-    return(list(c(DT,DTa,DTsoil1,DWsoil1,Dh),vars2))
+  #derivatives of variables
+  DT <- DT
+  DTa <- 0
+  DqM <- 0 
+  DthetavM <- 0
+    
+  DTsoil1 <- 0
+  DWsoil1 <- -2
+  Dh <- hmin
+    
+  #variables that aren't integrated with time and aren't returned as derivatives
+  vars2<-c(SWdn=SWdn.t,LWdn=LWdn.t,Rnet=Rnet,LWup=as.numeric(LWup),H=as.numeric(H),LE=as.numeric(LE),G=G,
+           An=as.numeric(An),rveg=as.numeric(rveg),raero=raero)
+ 
+  return(list(c(DT,DTa,DqM,DthetavM,DTsoil1,DWsoil1,Dh),vars2))
   })
 } # LAIM <-function(time,state,parms,SWdn_TIME,Ta_TIME){
 
 out <- ode(yini, times, LAIM, parms, SWdn_DAY=SWdn_DAY, LWdn_DAY=LWdn_DAY, method = "ode45")
 # colnames(out)[(2+length(yini)):ncol(out)]<-c("Rn","H","LE")
+result <- out
 
-dev.new();plot(out[,c("time","H")],type="l")
+filenm <- "result.csv"; write.csv(result,file=filenm)
+print(paste(filenm,"written out"))
+
+# text on plot 
+xmain <- paste("vegcontrolTF=",vegcontrolTF)
+xmain <- paste(xmain,"  atmrespondTF=",atmrespondTF)
+xmain <- paste(xmain,"\nABLTF=",ABLTF)
+xmain <- paste(xmain,"  soilWTF=",soilWTF)
+xmain <- paste(xmain,"\ndt=",dt,"[s]")
+# regenerate VPD from qstar and qair 
+e <- result[,"qair"]*Psurf/(Rd/Rv)      # vapor pressure [hPa]
+esat <- result[,"qstar"]*Psurf*(Rv/Rd)  # saturation vapor pressure [hPa]
+VPD <- 100*(esat-e)                     # vapor pressure deficit [Pa]
+
 
 dev.new()
-plot(out[,c("time","T")],type="l")
-lines(out[,c("time","Ta")],col="green")
+plot(result[,"time"]/3600,result[,"T"]-273.15,type="l",xlab="Time [hour]",ylab="Temperature [deg-C]",
+     cex.axis=1.3,cex.lab=1.3,lwd=2)
 
-dev.new();plot(out[,c("time","Tsoil1")],type="l")
+# plot with energy fluxes 
+dev.new()
+matplot(result[,"time"]/3600,result[,c("Rnet","LWup","H","LE","G")],type="l",lty=c(1,2,1,1,1),
+        cex.axis=1.5,cex.lab=1.5,col=c("black","black","orange","blue","darkgreen"),lwd=2,xlab="Time [hr]",ylab="")
+mtext(text=expression(paste("Energy Fluxes [W ",m^-2,"]",sep="")),line=2.3,cex=1.4,side=2)
+legend(x="topright",c("Rnet","LWup","H","LE","G"),col=c("black","black","orange","blue","darkgreen"),lwd=2,lty=c(1,2,1,1,1))
+title(main=xmain)
+dev.copy(png,"Energyfluxes.png");dev.off();print("Energyflux.png written out")
 
-dev.new();plot(out[,c("time","Wsoil1")],type="l")
 
-dev.new();plot(out[,c("time","h")],type="l")
 
+
+#################################################
+# -------------------- Plotting ----------------#
+
+# generate 4 different plots in one window, with 2*2 configuration
+dev.new(); par(mfrow=c(2,2),cex.main=0.7)   
+ylims <- range(result[,c("T","Ta","Tsoil1")]-273.15)
+plot(result[,"time"]/3600,result[,"T"]-273.15,type="l",xlab="Time [hour]",ylab="Temperature [deg-C]",
+     cex.axis=1.3,cex.lab=1.3,lwd=2,ylim=ylims,main=xmain)
+lines(result[,"time"]/3600,result[,"Ta"]-273.15,lty=3,lwd=1.5)
+lines(result[,"time"]/3600,result[,"Tsoil1"]-273.15,lty=1,lwd=2,col="darkgray")
+legend(x="topright",c("Tsurf","Tair","Tsoil"),lwd=2,lty=c(1,3,1),col=c("black","black","darkgray"))
+
+plot(result[,"time"]/3600,VPD,type="l",xlab="Time [hour]",ylab="VPD [Pa]",lwd=2,
+     cex.axis=1.3,cex.lab=1.3,main=xmain)
+
+ylims <- range(result[,c("qstar","qair")]*1000)
+plot(result[,"time"]/3600,result[,"qstar"]*1000,type="l",xlab="Time [hour]",ylab="Specific humidity [g/kg]",
+     cex.axis=1.3,cex.lab=1.3,lwd=2,ylim=ylims,main=xmain)
+lines(result[,"time"]/3600,result[,"qair"]*1000,lty=3,lwd=1.5)
+legend(x="topright",c("qstar","qair"),lwd=2,lty=c(1,3))
+
+ylims <- range(result[,c("raero","rveg")])
+plot(result[,"time"]/3600,result[,"raero"],type="l",xlab="Time [hour]",ylab="Resistances [s/m]",
+     cex.axis=1.3,cex.lab=1.3,lwd=1.5,lty=3,ylim=ylims,main=xmain,col="black")
+lines(result[,"time"]/3600,result[,"rveg"],lty=1,lwd=2,col="black")
+legend(x="topright",c("r_veg","r_aero"),lwd=2,lty=c(1,3),col=c("black","black"))
+
+# plot with energy fluxes 
+dev.new()
+matplot(result[,"time"]/3600,result[,c("Rnet","LWup","H","LE","G")],type="l",lty=c(1,2,1,1,1),
+        cex.axis=1.5,cex.lab=1.5,col=c("black","black","orange","blue","darkgreen"),lwd=2,xlab="Time [hr]",ylab="")
+mtext(text=expression(paste("Energy Fluxes [W ",m^-2,"]",sep="")),line=2.3,cex=1.4,side=2)
+legend(x="topright",c("Rnet","LWup","H","LE","G"),col=c("black","black","orange","blue","darkgreen"),lwd=2,lty=c(1,2,1,1,1))
+title(main=xmain)
+dev.copy(png,"Energyfluxes.png");dev.off();print("Energyflux.png written out")
+
+# plot soil water content 
+if (soilWTF) {
+  dev.new()
+  plot(result[,"time"]/3600,result[,"Wsoil1"],type="l",xlab="Time [hour]",ylab="",
+       cex.axis=1.3,cex.lab=1.3,lwd=2,main=paste("Soil type =",soiltype,"\n",xmain),col="black",ylim=c(Wwilt,Wfc))
+  mtext(text=expression(paste("Soil Volumetric Water Content [",m^3,"/",m^3,"]",sep="")),line=2,cex=1.3,side=2)
+  abline(h=Wsoil2,lty=3,lwd=2)
+  legend(x="bottomright",c("Wsoil1","Wsoil2"),col=c("black","black"),lwd=2,lty=c(1,3))
+  dev.copy(png,"Wsoil.png");dev.off();print("Wsoil.png written out")
+} #if (soilWTF)
+
+if (atmrespondTF) {
+  # plot time series of ABL height 
+  dev.new()
+  plot(result[,"time"]/3600,result[,"h"],type="l",xlab="Time [hour]",ylab="ABL height  h(t) [m]",
+       cex.axis=1.3,cex.lab=1.3,lwd=2)
+  title(main=paste0(xmain,"\nBeta=",Beta,";  gamma=",signif(gamma,4)," [K/m]"),cex.main=1.2)
+  dev.copy(png,"ABLht.png");dev.off();print("ABLht.png written out")
+} #if(atmrespondTF){
+
+if (vegcontrolTF) {
+  # plot time series of photosynthetic uptake 
+  dev.new()
+  plot(result[,"time"]/3600,result[,"An"],type="l",xlab="Time [hour]",ylab="",
+       cex.axis=1.3,cex.lab=1.3,lwd=2,main=xmain)
+  mtext(text=expression(paste("Net Photosynthesis (An) [",mu,"mole ",m^-2," ",s^-1,"]",sep="")),line=2,cex=1.3,side=2)
+  dev.copy(png,"PSN.png");dev.off();print("PSN.png written out")
+} #if(vegcontrolTF){
+
+if (vegcontrolTF&atmrespondTF&co2budgetTF) {
+  # plot time series of CO2 
+  dev.new()
+  plot(result[,"time"]/3600,result[,"CO2"],type="l",xlab="Time [hour]",ylab="CO2 [ppm]",
+       cex.axis=1.3,cex.lab=1.3,lwd=2,main=xmain)
+  par(new=T)
+  ylims <- range(result[,c("CO2flux.ent","CO2flux.veg")],na.rm=T)
+  plot(result[,"time"]/3600,result[,"CO2flux.veg"],type="l",axes=F,xlab="",ylab="",col="darkgray",ylim=ylims,lty=1,lwd=2)
+  lines(result[,"time"]/3600,result[,"CO2flux.ent"],col="darkgray",lty=3,lwd=2)
+  abline(h=0,lty=1,lwd=0.5,col="darkgray")
+  axis(4,cex.lab=1.3,cex.axis=1.3,col="darkgray",col.axis="darkgray")
+  legend(x="topright",c("CO2tot","dCO2.veg","dCO2.ent"),lwd=2,lty=c(1,1,3),
+         col=c("black","darkgray","darkgray"),text.col=c("black","darkgray","darkgray"))
+  dev.copy(png,"CO2.png");dev.off();print("CO2.png written out")
+} #if (vegcontrolTF&atmrespondTF) {
+#################################################
+
+###################################################################################################
 # ---------------------------------------Time Loop START------------------------------------------#
 tcurr <- 0
 T <- Tinit
 result_s <- NULL
 h <- hmin    # initialize with minimum 
 thetaM <- Ta.c[1]+273.15
-qM <- qair   # initialize with prescribed specific humidity [g/g]
-if (atmrespondTF) {qa <- qM} else {qa <- qair} 
+qM <- qair.presc   # initialize with prescribed specific humidity [g/g]
+if (atmrespondTF) {qa <- qM} else {qa <- qair.presc} 
 thetavM <- thetaM*(1+0.61*qM)   # virtual potential temperature [K];  Eq. 1.5.1b of Stull [1988]
 countp <- 0
 tcc <- 0   # total cloud fraction
@@ -364,7 +551,7 @@ while (tcurr<tmax) {
       qa <- qM
     } else {
       Ta <- approx(x=as.numeric(names(Ta.c))*3600,y=Ta.c,xout=tcurr%%(24*3600))$y+273.15  #use prescribed value
-      qa <- qair
+      qa <- qair.presc
     } # if(atmrespondTF){
     # determine sensible heat flux
     rho.surf <- Psurf*100/(Rd*T)   # surface air density [kg/m3]
@@ -497,99 +684,3 @@ while (tcurr<tmax) {
 result <- result_s[-1,]   # remove initial value
 dimnames(result) <- list(NULL,c("time","T","Ta","Tsoil1","Wsoil1","beta.W","LWup","Rnet","H","LE","G","DT",
                                 "qstar","qair","raero","rveg","An","ci","h","qM","thetavM","thetaM","CO2","CO2flux.veg","CO2flux.ent","CO2flux.tot"))
-filenm <- "result.csv"
-write.csv(result,file=filenm)
-print(paste(filenm,"written out"))
-
-# text on plot 
-xmain <- paste("vegcontrolTF=",vegcontrolTF)
-xmain <- paste(xmain,"  atmrespondTF=",atmrespondTF)
-xmain <- paste(xmain,"\nABLTF=",ABLTF)
-xmain <- paste(xmain,"  soilWTF=",soilWTF)
-xmain <- paste(xmain,"  cloudTF=",cloudTF)
-# regenerate VPD from qstar and qair 
-e <- result[,"qair"]*Psurf/(Rd/Rv)      # vapor pressure [hPa]
-esat <- result[,"qstar"]*Psurf*(Rv/Rd)  # saturation vapor pressure [hPa]
-VPD <- 100*(esat-e)                     # vapor pressure deficit [Pa]
-
-#################################################
-# -------------------- Plotting ----------------#
-
-# generate 4 different plots in one window, with 2*2 configuration
-dev.new(); par(mfrow=c(2,2),cex.main=0.7)   
-ylims <- range(result[,c("T","Ta","Tsoil1")]-273.15)
-plot(result[,"time"]/3600,result[,"T"]-273.15,type="l",xlab="Time [hour]",ylab="Temperature [deg-C]",
-     cex.axis=1.3,cex.lab=1.3,lwd=2,ylim=ylims,main=xmain)
-lines(result[,"time"]/3600,result[,"Ta"]-273.15,lty=3,lwd=1.5)
-lines(result[,"time"]/3600,result[,"Tsoil1"]-273.15,lty=1,lwd=2,col="darkgray")
-legend(x="topright",c("Tsurf","Tair","Tsoil"),lwd=2,lty=c(1,3,1),col=c("black","black","darkgray"))
-
-plot(result[,"time"]/3600,VPD,type="l",xlab="Time [hour]",ylab="VPD [Pa]",lwd=2,
-     cex.axis=1.3,cex.lab=1.3,main=xmain)
-
-ylims <- range(result[,c("qstar","qair")]*1000)
-plot(result[,"time"]/3600,result[,"qstar"]*1000,type="l",xlab="Time [hour]",ylab="Specific humidity [g/kg]",
-     cex.axis=1.3,cex.lab=1.3,lwd=2,ylim=ylims,main=xmain)
-lines(result[,"time"]/3600,result[,"qair"]*1000,lty=3,lwd=1.5)
-legend(x="topright",c("qstar","qair"),lwd=2,lty=c(1,3))
-
-ylims <- range(result[,c("raero","rveg")])
-plot(result[,"time"]/3600,result[,"raero"],type="l",xlab="Time [hour]",ylab="Resistances [s/m]",
-     cex.axis=1.3,cex.lab=1.3,lwd=1.5,lty=3,ylim=ylims,main=xmain,col="black")
-lines(result[,"time"]/3600,result[,"rveg"],lty=1,lwd=2,col="black")
-legend(x="topright",c("r_veg","r_aero"),lwd=2,lty=c(1,3),col=c("black","black"))
-
-# plot with energy fluxes 
-dev.new()
-matplot(result[,"time"]/3600,result[,c("Rnet","LWup","H","LE","G")],type="l",lty=c(1,2,1,1,1),
-        cex.axis=1.5,cex.lab=1.5,col=c("black","black","orange","blue","darkgreen"),lwd=2,xlab="Time [hr]",ylab="")
-mtext(text=expression(paste("Energy Fluxes [W ",m^-2,"]",sep="")),line=2.3,cex=1.4,side=2)
-legend(x="topright",c("Rnet","LWup","H","LE","G"),col=c("black","black","orange","blue","darkgreen"),lwd=2,lty=c(1,2,1,1,1))
-title(main=xmain)
-dev.copy(png,"Energyfluxes.png");dev.off();print("Energyflux.png written out")
-
-# plot soil water content 
-if (soilWTF) {
-  dev.new()
-  plot(result[,"time"]/3600,result[,"Wsoil1"],type="l",xlab="Time [hour]",ylab="",
-       cex.axis=1.3,cex.lab=1.3,lwd=2,main=paste("Soil type =",soiltype,"\n",xmain),col="black",ylim=c(Wwilt,Wfc))
-  mtext(text=expression(paste("Soil Volumetric Water Content [",m^3,"/",m^3,"]",sep="")),line=2,cex=1.3,side=2)
-  abline(h=Wsoil2,lty=3,lwd=2)
-  legend(x="bottomright",c("Wsoil1","Wsoil2"),col=c("black","black"),lwd=2,lty=c(1,3))
-  dev.copy(png,"Wsoil.png");dev.off();print("Wsoil.png written out")
-} #if (soilWTF)
-
-if (atmrespondTF) {
-  # plot time series of ABL height 
-  dev.new()
-  plot(result[,"time"]/3600,result[,"h"],type="l",xlab="Time [hour]",ylab="ABL height  h(t) [m]",
-       cex.axis=1.3,cex.lab=1.3,lwd=2)
-  title(main=paste0(xmain,"\nBeta=",Beta,";  gamma=",signif(gamma,4)," [K/m]"),cex.main=1.2)
-  dev.copy(png,"ABLht.png");dev.off();print("ABLht.png written out")
-} #if(atmrespondTF){
-
-if (vegcontrolTF) {
-  # plot time series of photosynthetic uptake 
-  dev.new()
-  plot(result[,"time"]/3600,result[,"An"],type="l",xlab="Time [hour]",ylab="",
-       cex.axis=1.3,cex.lab=1.3,lwd=2,main=xmain)
-  mtext(text=expression(paste("Net Photosynthesis (An) [",mu,"mole ",m^-2," ",s^-1,"]",sep="")),line=2,cex=1.3,side=2)
-  dev.copy(png,"PSN.png");dev.off();print("PSN.png written out")
-} #if(vegcontrolTF){
-
-if (vegcontrolTF&atmrespondTF&co2budgetTF) {
-  # plot time series of CO2 
-  dev.new()
-  plot(result[,"time"]/3600,result[,"CO2"],type="l",xlab="Time [hour]",ylab="CO2 [ppm]",
-       cex.axis=1.3,cex.lab=1.3,lwd=2,main=xmain)
-  par(new=T)
-  ylims <- range(result[,c("CO2flux.ent","CO2flux.veg")],na.rm=T)
-  plot(result[,"time"]/3600,result[,"CO2flux.veg"],type="l",axes=F,xlab="",ylab="",col="darkgray",ylim=ylims,lty=1,lwd=2)
-  lines(result[,"time"]/3600,result[,"CO2flux.ent"],col="darkgray",lty=3,lwd=2)
-  abline(h=0,lty=1,lwd=0.5,col="darkgray")
-  axis(4,cex.lab=1.3,cex.axis=1.3,col="darkgray",col.axis="darkgray")
-  legend(x="topright",c("CO2tot","dCO2.veg","dCO2.ent"),lwd=2,lty=c(1,1,3),
-         col=c("black","darkgray","darkgray"),text.col=c("black","darkgray","darkgray"))
-  dev.copy(png,"CO2.png");dev.off();print("CO2.png written out")
-} #if (vegcontrolTF&atmrespondTF) {
-#################################################
