@@ -253,7 +253,6 @@ print(paste("Tinit [oC]:",signif(Tinit-273.15,5),";   Rn-H-LE-G =",signif(tmp,4)
 #--------------------------------- ODE ODE ODE ODE ODE ODE ODE ODE ODE ODE ---------------------------------#
 ############################
 # initialize state variables
-
 thetaM <- Ta.c[1]+273.15
 qM <- qair.presc   # initialize with prescribed specific humidity [g/g]
 if (atmrespondTF) {qa <- qM} else {qa <- qair.presc} 
@@ -261,7 +260,7 @@ thetavM <- thetaM*(1+0.61*qM)   # virtual potential temperature [K];  Eq. 1.5.1b
 
 yini <- c(T = Tinit, Ta = Ta.c[1]+273.15, qM=qM, thetavM=thetavM,
           Tsoil1 = Tsoil1, Wsoil1=Wsoil1, h=hmin) 
-names(yini) <- c("T","Ta","<qa>","<thetav>","Tsoil1","Wsoil1","h")
+names(yini) <- c("T","Ta","<q>","<thetav>","Tsoil1","Wsoil1","h")
 
 ############################
 # initialize parameters
@@ -382,6 +381,7 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
     
   #variables that aren't integrated with time and aren't returned as derivatives
   vars2<-c(SWdn=SWdn.t,LWdn=LWdn.t,Rnet=Rnet,LWup=as.numeric(LWup),H=as.numeric(H),LE=as.numeric(LE),G=G,
+           qstar=as.numeric(qstar),
            An=as.numeric(An),rveg=as.numeric(rveg),raero=raero)
  
   return(list(c(DT,DTa,DqM,DthetavM,DTsoil1,DWsoil1,Dh),vars2))
@@ -402,7 +402,7 @@ xmain <- paste(xmain,"\nABLTF=",ABLTF)
 xmain <- paste(xmain,"  soilWTF=",soilWTF)
 xmain <- paste(xmain,"\ndt=",dt,"[s]")
 # regenerate VPD from qstar and qair 
-e <- result[,"qair"]*Psurf/(Rd/Rv)      # vapor pressure [hPa]
+e <- result[,"<q>"]*Psurf/(Rd/Rv)      # vapor pressure [hPa]
 esat <- result[,"qstar"]*Psurf*(Rv/Rd)  # saturation vapor pressure [hPa]
 VPD <- 100*(esat-e)                     # vapor pressure deficit [Pa]
 
@@ -419,7 +419,6 @@ mtext(text=expression(paste("Energy Fluxes [W ",m^-2,"]",sep="")),line=2.3,cex=1
 legend(x="topright",c("Rnet","LWup","H","LE","G"),col=c("black","black","orange","blue","darkgreen"),lwd=2,lty=c(1,2,1,1,1))
 title(main=xmain)
 dev.copy(png,"Energyfluxes.png");dev.off();print("Energyflux.png written out")
-
 
 
 
