@@ -1,6 +1,7 @@
 # Land-Atmosphere Interactions Model (LAIM) 
 # By John C. Lin (John.Lin@utah.edu)
 
+require("deSolve")   #load deSolve package to access function "ode"
 
 #################################################
 # Flags to Turn On/Off Processes 
@@ -16,8 +17,9 @@ if (!vegcontrolTF & co2budgetTF) stop ("vegcontrolTF needs to be TRUE to track C
 #################################################
 # Model timestep and duration
 dt <- 20           # model timestep [s]
-t.day <- 2         # run time in days
+t.day <- 1         # run time in days
 tmax <- t.day*24*3600  #maximum time [s]
+times <- seq(0,tmax,dt) #vector of time steps [s]
 DTtol <- 0.01      # tolerance for change in T when solving numerically (if T is within this range, then stop iterating) [oK]
 countTmax <- 1000  # max number of times to iterate T calculation
 #################################################
@@ -151,11 +153,14 @@ t.hr<-0:24
 SWdn<--15*(t.hr-12)^2+800 # hourly downward shortwave radiation [W/m2]
 names(SWdn)<-t.hr
 SWdn[as.character(c(0:5,19:24))]<-0 # night time:  set to 0
+SWdn_DAY <- SWdn
+
 # b) constant SWdn
 # SWdn[1:length(SWdn)]<-1000
 
 # Downward longwave radiation
 LWdn <- SWdn; LWdn[1:length(LWdn)] <- 350 # constant downward longwave radiation [W/m2]
+LWdn_DAY <- LWdn
 
 # -----------Atmospheric conditions----------#
 # Air temperature
@@ -243,6 +248,76 @@ tmp <- f(T=Tinit,Ta=Ta.c[1]+273.15,SWdn=SWdn[1],LWdn=LWdn[1],Tsoil1=Tsoil1,
 print(paste("Tinit [oC]:",signif(Tinit-273.15,5),";   Rn-H-LE-G =",signif(tmp,4)))
 # Impose perturbation
 # Tinit <- Tinit+10
+
+#--------------------------------- ODE ODE ODE ODE ODE ODE ODE ODE ODE ODE ---------------------------------#
+############################
+# initialize state variables
+qstar=NA, qa=NA, qM=NA, thetavM=NA, thetaM=NA, raero=NA, rveg=NA, An=NA, ci=NA, Cair=NA, CO2flux.veg=NA, CO2flux.ent=NA, CO2flux.tot=NA)    
+
+thetaM <- Ta.c[1]+273.15
+qM <- qair   # initialize with prescribed specific humidity [g/g]
+if (atmrespondTF) {qa <- qM} else {qa <- qair} 
+thetavM <- thetaM*(1+0.61*qM)   # virtual potential temperature [K];  Eq. 1.5.1b of Stull [1988]
+
+yini <- c(T = Tinit, Ta = Ta.c[1]+273.15, qM=qM, thetavM=thetavM,
+          Tsoil1 = Tsoil1, Wsoil1=Wsoil1, h=hmin) 
+names(yini) <- c("T","Ta","Tsoil1","Wsoil1","h")
+parms <- c(dt,vegcontrolTF=vegcontrolTF,atmresopndTF=atmrespondTF,ABLTF=ABLTF,cloudTF=cloudTF,soilWTF=soilWTF,co2budgetTF=co2budgetTF)
+
+LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY){
+  # Physical constants
+  Cp <- 1005.7;Cv <- 719 # heat capacities @ constant pressure & volume [J/kg/K] (Appendix 2 of Emanuel (1994)
+  g <- 9.80665 # standard surface gravity [m/s2]
+  Rd <- 287.04 # Ideal Gas Constant of DRY air [J/kg/K] (Appendix 2 of Emanuel (1994))
+  Rv <- 461.40 # Ideal Gas Constant of water vapor [J/kg/K] (Appendix A.1.4 of Jacobson (1999)
+  sigma <- 5.670373E-8    # Stefan-Boltzmann constant [W/m2/K4]
+  Md <- 28.97  #molar mass of dry air [g/mole]
+  rho.W <- 1000 # density of water [kg/m3]
+  
+  with(as.list(c(state,parms)),{
+    
+    # LWup <- epsilon.s*sigma*T^4   # upward longwave radiation [W/m2]
+    LWdn.t <- approx(x=as.numeric(names(LWdn_DAY))*3600,y=LWdn_DAY,xout=time%%(24*3600))$y  # downward shortwave radiation [W/m2]
+    SWdn.t <- approx(x=as.numeric(names(SWdn_DAY))*3600,y=SWdn_DAY,xout=time%%(24*3600))$y  # downward shortwave radiation [W/m2]
+    #SWup <- albedo*SWdn.t
+    # determine net radiation
+    #Rnet <- SWdn.t-SWup+LWdn.t-LWup
+    
+    #variables that aren't integrated with time
+    Rn <- 5*time
+    if(vegcontrolTF){
+      H <- cos(time*2*pi/(24*3600))
+    } else { 
+      H <- sin(time*2*pi/(24*3600))
+    }
+    LE <- 15
+    
+    #derivatives of variables
+    DT <- 2*sigma
+    DTa <- 2
+    DTsoil1 <- 0
+    DWsoil1 <- -2
+    Dh <- hmin
+    
+    vars2<-c(SWdn=SWdn.t,LWdn=LWdn.t,Rn=Rn,H=H,LE=LE)
+    return(list(c(DT,DTa,DTsoil1,DWsoil1,Dh),vars2))
+  })
+} # LAIM <-function(time,state,parms,SWdn_TIME,Ta_TIME){
+
+out <- ode(yini, times, LAIM, parms, SWdn_DAY=SWdn_DAY, LWdn_DAY=LWdn_DAY, method = "ode45")
+# colnames(out)[(2+length(yini)):ncol(out)]<-c("Rn","H","LE")
+
+dev.new();plot(out[,c("time","H")],type="l")
+
+dev.new()
+plot(out[,c("time","T")],type="l")
+lines(out[,c("time","Ta")],col="green")
+
+dev.new();plot(out[,c("time","Tsoil1")],type="l")
+
+dev.new();plot(out[,c("time","Wsoil1")],type="l")
+
+dev.new();plot(out[,c("time","h")],type="l")
 
 # ---------------------------------------Time Loop START------------------------------------------#
 tcurr <- 0
