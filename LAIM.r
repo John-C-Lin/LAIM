@@ -8,7 +8,6 @@ require("deSolve")   #load deSolve package to access function "ode"
 vegcontrolTF <- TRUE    # vegetation control?
 atmrespondTF <- TRUE    # does atmosphere respond to surface fluxes?
 ABLTF<- TRUE            # does ABL growth or decay, according to surface heat fluxes?
-cloudTF <- TRUE         # cloud response to relative humidity?
 soilWTF <- TRUE         # turn on soil moisture feedbacks?
 co2budgetTF <- TRUE     # track atmospheric CO2, based on surface and entrainment fluxes? 
 if (!vegcontrolTF & co2budgetTF) stop ("vegcontrolTF needs to be TRUE to track CO2")
@@ -267,18 +266,18 @@ names(yini) <- c("T","Ta","<q>","<thetav>","Tsoil1","Wsoil1","h")
 # 0. numerical parameters
 parms <- c(dt=dt,DTtol=DTtol,countTmax=countTmax)
 # 1.  flags
-parms <- c(parms,vegcontrolTF=vegcontrolTF,atmresopndTF=atmrespondTF,ABLTF=ABLTF,cloudTF=cloudTF,soilWTF=soilWTF,co2budgetTF=co2budgetTF)
+parms <- c(parms,vegcontrolTF=vegcontrolTF,atmresopndTF=atmrespondTF,ABLTF=ABLTF,soilWTF=soilWTF,co2budgetTF=co2budgetTF)
 # 2.  atmospheric conditions 
 parms <- c(parms,Psurf=Psurf,qair.presc=qair.presc,Hscale=Hscale,hmin=hmin,Beta=Beta,gamma=gamma,W=W,Ur=Ur,zr=zr,Cair=Cair,Cabove=Cabove)
 # 3.  land surface characteristics
-parms <- c(parms,gvmax=gvmax,albedo=albedo,z0=z0,epsilon.s=epsilon.s,LAI=LAI,Kb=Kb,Hveg=Hveg,rho.veg=rho.veg,Cp.veg=Cp.veg,Cs=Cs)
+parms <- c(parms,gvmax=gvmax,albedo=albedo,albedo.c,albedo.c,z0=z0,epsilon.s=epsilon.s,LAI=LAI,Kb=Kb,Hveg=Hveg,rho.veg=rho.veg,Cp.veg=Cp.veg,Cs=Cs)
 # 4.  soil characteristics
 parms <- c(parms,Wsat=Wsat,Wfc=Wfc,Wwilt=Wwilt,aa=aa,bb=bb,pp=pp,rTsoil.sat=rTsoil.sat,C1sat=C1sat,C2ref=C2ref,Lambda=Lambda,Tsoil2=Tsoil2,Wsoil2=Wsoil2,d1=d1)
 
 ############################
 # define LAIM model function (what happens each time step)
 LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
-  ####################
+  #------------------#
   # Physical constants
   Cp <- 1005.7;Cv <- 719 # heat capacities @ constant pressure & volume [J/kg/K] (Appendix 2 of Emanuel (1994)
   g <- 9.80665 # standard surface gravity [m/s2]
@@ -287,7 +286,7 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
   sigma <- 5.670373E-8    # Stefan-Boltzmann constant [W/m2/K4]
   Md <- 28.97  #molar mass of dry air [g/mole]
   rho.W <- 1000 # density of water [kg/m3]
-  ####################
+  #------------------#
   
   if(((time/3600)%%1)==0) print(paste("Running model: time=",time/3600,"[hr]"))
   with(as.list(c(state,parms)),{
@@ -388,9 +387,7 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
   })
 } # LAIM <-function(time,state,parms,SWdn_TIME,Ta_TIME){
 
-out <- ode(yini, times, LAIM, parms, SWdn_DAY=SWdn_DAY, LWdn_DAY=LWdn_DAY, method = "ode45")
-# colnames(out)[(2+length(yini)):ncol(out)]<-c("Rn","H","LE")
-result <- out
+result <- ode(yini, times, LAIM, parms, SWdn_DAY=SWdn_DAY, LWdn_DAY=LWdn_DAY, method = "lsoda")
 
 filenm <- "result.csv"; write.csv(result,file=filenm)
 print(paste(filenm,"written out"))
@@ -421,6 +418,7 @@ title(main=xmain)
 dev.copy(png,"Energyfluxes.png");dev.off();print("Energyflux.png written out")
 
 
+if(FALSE){
 
 #################################################
 # -------------------- Plotting ----------------#
@@ -504,6 +502,7 @@ if (vegcontrolTF&atmrespondTF&co2budgetTF) {
 } #if (vegcontrolTF&atmrespondTF) {
 #################################################
 
+
 ###################################################################################################
 # ---------------------------------------Time Loop START------------------------------------------#
 tcurr <- 0
@@ -526,15 +525,6 @@ while (tcurr<tmax) {
   
   LWup <- epsilon.s*sigma*T^4   # upward longwave radiation [W/m2]
   LWdn.t <- approx(x=as.numeric(names(LWdn))*3600,y=LWdn,xout=tcurr%%(24*3600))$y  # downward shortwave radiation [W/m2]
-  if (cloudTF) {
-    RHe <- 0.5			# fitting parameter sets TCC to gain at approximately 60% humidity
-    esat <- satvap(T-273.15)/100 # saturation specific humidity [hPa]
-    e <- qa*Psurf/(Rd/Rv)        # vapor pressure [hPa]
-    qstar <- (Rd/Rv)*esat/Psurf    # saturation specific humidity [g/g]
-    tcc <- min(exp((qM/qstar-1)/(1-RHe)),1) 	# Walcek 1994 model equation (1) 	
-    LWdn.t<- LWup-100+80*(tcc)
-    albedo <- albedo.c+0.75*(tcc)
-  } #if (cloudTF)
   SWdn.t <- approx(x=as.numeric(names(SWdn))*3600,y=SWdn,xout=tcurr%%(24*3600))$y  # downward shortwave radiation [W/m2]
   SWup <- albedo*SWdn.t
   # determine net radiation
@@ -683,3 +673,6 @@ while (tcurr<tmax) {
 result <- result_s[-1,]   # remove initial value
 dimnames(result) <- list(NULL,c("time","T","Ta","Tsoil1","Wsoil1","beta.W","LWup","Rnet","H","LE","G","DT",
                                 "qstar","qair","raero","rveg","An","ci","h","qM","thetavM","thetaM","CO2","CO2flux.veg","CO2flux.ent","CO2flux.tot"))
+
+}  # if(FALSE){
+  
