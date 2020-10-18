@@ -7,7 +7,6 @@
 vegcontrolTF <- TRUE    # vegetation control?
 atmrespondTF <- TRUE    # does atmosphere respond to surface fluxes?
 ABLTF<- TRUE            # does ABL growth or decay, according to surface heat fluxes?
-cloudTF <- TRUE         # cloud response to relative humidity?
 soilWTF <- TRUE         # turn on soil moisture feedbacks?
 co2budgetTF <- TRUE     # track atmospheric CO2, based on surface and entrainment fluxes? 
 if (!vegcontrolTF & co2budgetTF) stop ("vegcontrolTF needs to be TRUE to track CO2")
@@ -265,15 +264,6 @@ while (tcurr<tmax) {
   
   LWup <- epsilon.s*sigma*T^4   # upward longwave radiation [W/m2]
   LWdn.t <- approx(x=as.numeric(names(LWdn))*3600,y=LWdn,xout=tcurr%%(24*3600))$y  # downward shortwave radiation [W/m2]
-  if (cloudTF) {
-	  RHe <- 0.5			# fitting parameter sets TCC to gain at approximately 60% humidity
-	  esat <- satvap(T-273.15)/100 # saturation specific humidity [hPa]
-	  e <- qa*Psurf/(Rd/Rv)        # vapor pressure [hPa]
-	  qstar <- (Rd/Rv)*esat/Psurf    # saturation specific humidity [g/g]
-	  tcc <- min(exp((qM/qstar-1)/(1-RHe)),1) 	# Walcek 1994 model equation (1) 	
-	  LWdn.t<- LWup-100+80*(tcc)
-	  albedo <- albedo.c+0.75*(tcc)
-	} #if (cloudTF)
   SWdn.t <- approx(x=as.numeric(names(SWdn))*3600,y=SWdn,xout=tcurr%%(24*3600))$y  # downward shortwave radiation [W/m2]
   SWup <- albedo*SWdn.t
   # determine net radiation
@@ -431,7 +421,6 @@ xmain <- paste("vegcontrolTF=",vegcontrolTF)
 xmain <- paste(xmain,"  atmrespondTF=",atmrespondTF)
 xmain <- paste(xmain,"\nABLTF=",ABLTF)
 xmain <- paste(xmain,"  soilWTF=",soilWTF)
-xmain <- paste(xmain,"  cloudTF=",cloudTF)
 # regenerate VPD from qstar and qair 
 e <- result[,"qair"]*Psurf/(Rd/Rv)      # vapor pressure [hPa]
 esat <- result[,"qstar"]*Psurf*(Rv/Rd)  # saturation vapor pressure [hPa]
