@@ -251,16 +251,16 @@ print(paste("Tinit [oC]:",signif(Tinit-273.15,5),";   Rn-H-LE-G =",signif(tmp,4)
 
 #############################################################################################################
 #--------------------------------- ODE ODE ODE ODE ODE ODE ODE ODE ODE ODE ---------------------------------#
-########################################################
+#############################################################################################################
 # initialize state variables
 thetaM <- Ta.c[1]+273.15
 qM <- qair.presc   # initialize with prescribed specific humidity [g/g]
 if (atmrespondTF) {qa <- qM} else {qa <- qair.presc} 
 thetavM <- thetaM*(1+0.61*qM)   # virtual potential temperature [K];  Eq. 1.5.1b of Stull [1988]
 
-yini <- c(T = Tinit, Ta = Ta.c[1]+273.15, qM=qM, thetavM=thetavM,
-          Tsoil1 = Tsoil1, Wsoil1=Wsoil1, h=hmin) 
-names(yini) <- c("T","Ta","<q>","<thetav>","Tsoil1","Wsoil1","h")
+yini <- c(T=Tinit, Ta=Ta.c[1]+273.15, qM=qM, thetavM=thetavM,
+          Tsoil1=Tsoil1, Wsoil1=Wsoil1, h=hmin, CO2=Cair) 
+names(yini) <- c("T","Ta","<q>","<thetav>","Tsoil1","Wsoil1","h","CO2")
 
 ########################################################
 # initialize parameters
@@ -269,7 +269,7 @@ parms <- c(dt=dt,DTtol=DTtol,countTmax=countTmax)
 # 1.  flags
 parms <- c(parms,vegcontrolTF=vegcontrolTF,atmresopndTF=atmrespondTF,ABLTF=ABLTF,soilWTF=soilWTF,co2budgetTF=co2budgetTF)
 # 2.  atmospheric conditions 
-parms <- c(parms,Psurf=Psurf,qair.presc=qair.presc,Hscale=Hscale,hmin=hmin,Beta=Beta,gamma=gamma,W=W,Ur=Ur,zr=zr,Cair=Cair,Cabove=Cabove)
+parms <- c(parms,Psurf=Psurf,qair.presc=qair.presc,Hscale=Hscale,hmin=hmin,Beta=Beta,gamma=gamma,W=W,Ur=Ur,zr=zr,Cabove=Cabove)
 # 3.  land surface characteristics
 parms <- c(parms,gvmax=gvmax,albedo=albedo,albedo.c=albedo.c,z0=z0,epsilon.s=epsilon.s,LAI=LAI,Kb=Kb,Hveg=Hveg,rho.veg=rho.veg,Cp.veg=Cp.veg,Cs=Cs)
 # 4.  soil characteristics
@@ -436,7 +436,7 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
     # update ABL height
     h.orig <- h
     # h <- h+dh.dt*dt
-    if (F0thetav<=0.00&ABLTF){dh.dt <- (hmin - h.orig)/dt; h<-hmin} # override value:  ABL collapses
+    if (F0thetav<=0.00&ABLTF){dh.dt <- (hmin - h.orig)/dt} # override value:  ABL collapses
   } # if(atmrespondTF){
   
   #derivatives of variables
@@ -447,13 +447,15 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
   DTsoil1 <- dTsoil1.dt
   DWsoil1 <- dWsoil1.dt
   Dh <- dh.dt
+  DCO2 <- dC.dt 
     
   #variables that aren't integrated with time and aren't returned as derivatives
   vars2<-c(SWdn=SWdn.t,LWdn=LWdn.t,Rnet=Rnet,LWup=as.numeric(LWup),H=as.numeric(H),LE=as.numeric(LE),G=G,
            qstar=as.numeric(qstar),
-           An=as.numeric(An),rveg=as.numeric(rveg),raero=raero)
+           An=as.numeric(An),rveg=as.numeric(rveg),raero=raero,
+           CO2flux.veg=as.numeric(CO2flux.veg),CO2flux.ent=as.numeric(CO2flux.ent),CO2flux.tot=as.numeric(CO2flux.tot))
  
-  return(list(c(DT,DTa,DqM,DthetavM,DTsoil1,DWsoil1,Dh),vars2))
+  return(list(c(DT,DTa,DqM,DthetavM,DTsoil1,DWsoil1,Dh,DCO2),vars2))
   })
 } # LAIM <-function(time,state,parms,SWdn_TIME,Ta_TIME){
 
