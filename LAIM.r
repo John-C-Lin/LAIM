@@ -453,6 +453,7 @@ plot(result[,"time"]/3600,result[,"raero"],type="l",xlab="Time [hour]",ylab="Res
      cex.axis=1.3,cex.lab=1.3,lwd=1.5,lty=3,ylim=ylims,main=xmain,col="black")
 lines(result[,"time"]/3600,result[,"rveg"],lty=1,lwd=2,col="black")
 legend(x="topright",c("r_veg","r_aero"),lwd=2,lty=c(1,3),col=c("black","black"))
+dev.copy(png,"T_q_r.png");dev.off();print("T_q_r.png written out")
 
 # plot with energy fluxes 
 dev.new()
