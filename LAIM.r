@@ -5,7 +5,7 @@
 #################################################
 # Flags to Turn On/Off Processes 
 vegcontrolTF <- TRUE    # vegetation control?
-atmrespondTF <- TRUE    # does atmosphere respond to surface fluxes?
+atmrespondTF <- FALSE   # does atmosphere respond to surface fluxes?
 ABLTF<- TRUE            # does ABL growth or decay, according to surface heat fluxes?
 soilWTF <- TRUE         # turn on soil moisture feedbacks?
 co2budgetTF <- TRUE     # track atmospheric CO2, based on surface and entrainment fluxes? 
@@ -355,6 +355,7 @@ while (iterateT) {   #iterate until convergence
   
   # if want atmosphere to respond
   # Based on "zero-order jump" or "slab" model of convective boundary layer, described in Pg. 151~155 of Garratt [1992]
+  CO2flux.veg <- NA; CO2flux.ent <- NA; CO2flux.tot <- NA
   if (atmrespondTF) {
     #update ABL-averaged q
     #calculate surface virtual heat flux
@@ -386,7 +387,6 @@ while (iterateT) {   #iterate until convergence
     thetavM <- thetavM + dthetavM.dt*dt
     thetaM <- thetavM/(1+0.61*qM)   # potential temperature, from virtual pot temp [K];  Eq. 1.5.1b of Stull [1988]
     # update ABL-averaged CO2
-    CO2flux.veg <- NA; CO2flux.ent <- NA; CO2flux.tot <- NA
     if (co2budgetTF) {
       CO2flux.veg <- (-1*An + Resp)  # surface CO2 flux [umole/m2/s]; photosynthesis is a negative flux (removal from atmosphere)
       CO2flux.tot <- CO2flux.veg
