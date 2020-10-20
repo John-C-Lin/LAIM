@@ -6,7 +6,7 @@ require("deSolve")   #load deSolve package to access function "ode"
 #################################################
 # Flags to Turn On/Off Processes 
 vegcontrolTF <- TRUE    # vegetation control?
-atmrespondTF <- TRUE    # does atmosphere respond to surface fluxes?
+atmrespondTF <- FALSE   # does atmosphere respond to surface fluxes?
 ABLTF<- TRUE            # does ABL growth or decay, according to surface heat fluxes?
 soilWTF <- TRUE         # turn on soil moisture feedbacks?
 co2budgetTF <- TRUE     # track atmospheric CO2, based on surface and entrainment fluxes? 
@@ -369,6 +369,7 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
     iterateT <- abs(DT)>DTtol   # continue iterating until T converges
   } # while (iterateT) {   #iterate until converge
 
+  
   # heat transport between surface and deep soil layer to update Tsoil1 from CLASS model
   rTsoil <- rTsoil.sat * (Wsat/Wsoil2)^(bb/(2*log(10)))
   dTsoil1.dt <- (rTsoil*G - (2*pi/(86400))*(Tsoil1 - Tsoil2))
@@ -439,6 +440,9 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
     if (F0thetav<=0.00&ABLTF){dh.dt <- (hmin - h.orig)/dt} # override value:  ABL collapses
   } # if(atmrespondTF){
   
+  #!!!!! debugging
+  Tgrad <- T - Ta
+  
   #derivatives of variables
   DT <- DT
   DTa <- dthetavM.dt/(1+0.61*qM)
@@ -451,9 +455,9 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
     
   #variables that aren't integrated with time and aren't returned as derivatives
   vars2<-c(SWdn=SWdn.t,LWdn=LWdn.t,Rnet=Rnet,LWup=as.numeric(LWup),H=as.numeric(H),LE=as.numeric(LE),G=G,
-           qstar=as.numeric(qstar),
-           An=as.numeric(An),rveg=as.numeric(rveg),raero=raero,
-           CO2flux.veg=as.numeric(CO2flux.veg),CO2flux.ent=as.numeric(CO2flux.ent),CO2flux.tot=as.numeric(CO2flux.tot))
+           qstar=as.numeric(qstar),An=as.numeric(An),rveg=as.numeric(rveg),raero=raero,
+           CO2flux.veg=as.numeric(CO2flux.veg),CO2flux.ent=as.numeric(CO2flux.ent),CO2flux.tot=as.numeric(CO2flux.tot),
+           dh.dt=as.numeric(dh.dt),Tgrad=as.numeric(Tgrad))
  
   return(list(c(DT,DTa,DqM,DthetavM,DTsoil1,DWsoil1,Dh,DCO2),vars2))
   })
@@ -461,7 +465,7 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
 
 ########################################################
 # call "ode" to integrate LAIM model in time
-result <- ode(yini, times, LAIM, parms, SWdn_DAY=SWdn_DAY, LWdn_DAY=LWdn_DAY, method = "lsoda")
+result <- ode(yini, times, LAIM, parms, SWdn_DAY=SWdn_DAY, LWdn_DAY=LWdn_DAY,Ta.c_DAY=Ta.c_DAY, method = "lsoda")
 filenm <- "result.csv"; write.csv(result,file=filenm)
 print(paste(filenm,"written out"))
 
@@ -532,6 +536,16 @@ if (atmrespondTF) {
        cex.axis=1.3,cex.lab=1.3,lwd=2)
   title(main=paste0(xmain,"\nBeta=",Beta,";  gamma=",signif(gamma,4)," [K/m]"),cex.main=1.2)
   dev.copy(png,"ABLht.png");dev.off();print("ABLht.png written out")
+  
+  #!!!! (201019): debugging !!!!
+  dev.new()
+  plot(result[,"time"]/3600,result[,"Tgrad"],type="l",xlab="Time [hour]",ylab="T - Ta [K]",
+       cex.axis=1.3,cex.lab=1.3,lwd=2)
+  
+  dev.new()
+  plot(result[,"time"]/3600,result[,"dh.dt"],type="l",xlab="Time [hour]",ylab="dh.dt [m/s]",
+       cex.axis=1.3,cex.lab=1.3,lwd=2)
+  
 } #if(atmrespondTF){
 
 if (vegcontrolTF) {
