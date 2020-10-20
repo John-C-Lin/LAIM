@@ -391,6 +391,7 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
   
   # if want atmosphere to respond
   # Based on "zero-order jump" or "slab" model of convective boundary layer, described in Pg. 151~155 of Garratt [1992]
+  CO2flux.veg <- NA; CO2flux.ent <- NA; CO2flux.tot <- NA
   if (atmrespondTF) {
     #update ABL-averaged q
     #calculate surface virtual heat flux
@@ -402,7 +403,7 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
       Fhthetav <- -1*Beta*F0thetav   # closure hypothesis (Eq. 6.15 of Garratt [1992])
       # calculate ABL growth rate
       dh.dt<-(1+2*Beta)*F0thetav/(gamma*h)
-      if (F0thetav<=0.00) dh.dt <- 0 # ABL collapses
+      if (F0thetav<=0.00){dh.dt <- (hmin - h)/dt} # override value:  ABL collapses
     } else {
       dh.dt <- 0
       Fhthetav <- 0
@@ -413,7 +414,7 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
     
     # calculate entrainment flux of humidity
     deltaq <- qabove - qM
-    Fhq <- -1*rhobar*deltaq*(dh.dt-W)*1000  # entrainment flux of humidity [g/m2/s] NOTE:  assume CONSTANT air density!
+    if(dh.dt>=0)Fhq <- -1*rhobar*deltaq*(dh.dt-W)*1000  # entrainment flux of humidity [g/m2/s] NOTE:  assume CONSTANT air density!
     dq.dt <- (E - Fhq)/(rhobar*1000*h) # change of humidity in ABL [1/s]
     # qM <- qM+dq.dt*dt             # updated qM [g/g]
     # update ABL-averaged thetav
@@ -422,7 +423,6 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
     # thetavM <- thetavM + dthetavM.dt*dt
     # thetaM <- thetavM/(1+0.61*qM)   # potential temperature, from virtual pot temp [K];  Eq. 1.5.1b of Stull [1988]
     # update ABL-averaged CO2
-    CO2flux.veg <- NA; CO2flux.ent <- NA; CO2flux.tot <- NA
     if (co2budgetTF) {
       CO2flux.veg <- (-1*An + Resp)  # surface CO2 flux [umole/m2/s]; photosynthesis is a negative flux (removal from atmosphere)
       CO2flux.tot <- CO2flux.veg
@@ -432,13 +432,13 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
         CO2flux.tot <- CO2flux.veg + CO2flux.ent
       } # if(dh.dt>0){
       dC.dt <- CO2flux.tot*(Md/1000)/(rhobar*h)  # dilute surface flux in box of height h to generate change in CO2 [ppm/s]
-      Cair <- Cair + dC.dt*dt          # update CO2 concentration [ppm]
+      # Cair <- Cair + dC.dt*dt          # update CO2 concentration [ppm]
       #print(paste("CO2:",signif(Cair,5)))
     } # if (co2budgetTF) {
     # update ABL height
-    h.orig <- h
+    # h.orig <- h
     # h <- h+dh.dt*dt
-    if (F0thetav<=0.00&ABLTF){dh.dt <- (hmin - h.orig)/dt} # override value:  ABL collapses
+    # if (F0thetav<=0.00&ABLTF){dh.dt <- (hmin - h.orig)/dt} # override value:  ABL collapses
   } else{
     dthetavM.dt <- 0
     dq.dt <- 0
