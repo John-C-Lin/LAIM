@@ -5,7 +5,7 @@
 #################################################
 # Flags to Turn On/Off Processes 
 vegcontrolTF <- TRUE    # vegetation control?
-atmrespondTF <- FALSE   # does atmosphere respond to surface fluxes?
+atmrespondTF <- TRUE    # does atmosphere respond to surface fluxes?
 ABLTF<- TRUE            # does ABL growth or decay, according to surface heat fluxes?
 soilWTF <- TRUE         # turn on soil moisture feedbacks?
 co2budgetTF <- TRUE     # track atmospheric CO2, based on surface and entrainment fluxes? 
