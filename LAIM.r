@@ -6,7 +6,7 @@ require("deSolve")   #load deSolve package to access function "ode"
 #################################################
 # Flags to Turn On/Off Processes 
 vegcontrolTF <- TRUE    # vegetation control?
-atmrespondTF <- FALSE   # does atmosphere respond to surface fluxes?
+atmrespondTF <- TRUE    # does atmosphere respond to surface fluxes?
 ABLTF<- TRUE            # does ABL growth or decay, according to surface heat fluxes?
 soilWTF <- TRUE         # turn on soil moisture feedbacks?
 co2budgetTF <- TRUE     # track atmospheric CO2, based on surface and entrainment fluxes? 
@@ -438,6 +438,9 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
     h.orig <- h
     # h <- h+dh.dt*dt
     if (F0thetav<=0.00&ABLTF){dh.dt <- (hmin - h.orig)/dt} # override value:  ABL collapses
+  } else{
+    dthetavM.dt <- 0
+    dq.dt <- 0
   } # if(atmrespondTF){
   
   #!!!!! debugging
@@ -521,7 +524,7 @@ dev.copy(png,"Energyfluxes.png");dev.off();print("Energyflux.png written out")
 # plot soil water content 
 if (soilWTF) {
   dev.new()
-  plot(result[,"time"]/3600,result[,"Wsoil1"],type="l",xlab="Time [hour]",ylab="",
+  plot(result[,"time"]/3600,result[,"Wsoil1"],type="l",xlab="Time [hour]",ylab="",cex.main=1.0,
        cex.axis=1.3,cex.lab=1.3,lwd=2,main=paste("Soil type =",soiltype,"\n",xmain),col="black",ylim=c(Wwilt,Wfc))
   mtext(text=expression(paste("Soil Volumetric Water Content [",m^3,"/",m^3,"]",sep="")),line=2,cex=1.3,side=2)
   abline(h=Wsoil2,lty=3,lwd=2)
