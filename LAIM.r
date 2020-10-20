@@ -255,7 +255,7 @@ print(paste("Tinit [oC]:",signif(Tinit-273.15,5),";   Rn-H-LE-G =",signif(tmp,4)
 # initialize state variables
 thetaM <- Ta.c[1]+273.15
 qM <- qair.presc   # initialize with prescribed specific humidity [g/g]
-if (atmrespondTF) {qa <- qM} else {qa <- qair.presc} 
+# if (atmrespondTF) {qa <- qM} else {qa <- qair.presc} 
 thetavM <- thetaM*(1+0.61*qM)   # virtual potential temperature [K];  Eq. 1.5.1b of Stull [1988]
 
 yini <- c(T=Tinit, Ta=Ta.c[1]+273.15, qM=qM, thetavM=thetavM,
@@ -304,13 +304,14 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
     countT <- countT + 1
     if(countT > countTmax)stop("T does not converge")
       
-    if (atmrespondTF) {
-      thetaM <- thetavM/(1+0.61*qM) 
-      Ta <- thetaM   
-      qa <- qM
-    } else {
+    #if (atmrespondTF) {
+    #  thetaM <- thetavM/(1+0.61*qM) 
+    #  Ta <- thetaM   
+    #  qa <- qM
+    #} else {
+    if (!atmrespondTF) {
       Ta <- approx(x=as.numeric(names(Ta.c_DAY))*3600,y=Ta.c_DAY,xout=time%%(24*3600))$y+273.15  #use prescribed value
-      qa <- qair.presc
+      qM <- qair.presc
     } # if(atmrespondTF){
     
     # determine sensible heat flux
@@ -322,7 +323,7 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
     beta.W <- 1   # water stress parameter (dependent on soil moisture)
     Lv <- 1000*latentheat(T-273.15)  # latent heat of vaporization [J/kg]
     esat <- satvap(T-273.15)/100 # saturation specific humidity [hPa]
-    e <- qa*Psurf/(Rd/Rv)        # vapor pressure [hPa]
+    e <- qM*Psurf/(Rd/Rv)        # vapor pressure [hPa]
     VPD <- 100*(esat-e)            # vapor pressure deficit [Pa]
     qstar <- (Rd/Rv)*esat/Psurf    # saturation specific humidity [g/g]
     if (vegcontrolTF) {
@@ -352,7 +353,7 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
     An <- An*scale.canopy
     gv <- (1/rveg)*scale.canopy
     rveg <- 1/gv
-    LE <- (Lv*rho.surf/(raero+rveg))*(qstar-qa) #[W/m2]
+    LE <- (Lv*rho.surf/(raero+rveg))*(qstar-qM) #[W/m2]
       
     # !!! determine RESPIRATION!!!
     Resp <- 0
@@ -372,8 +373,8 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
   
   # heat transport between surface and deep soil layer to update Tsoil1 from CLASS model
   rTsoil <- rTsoil.sat * (Wsat/Wsoil2)^(bb/(2*log(10)))
-  dTsoil1.dt <- (rTsoil*G - (2*pi/(86400))*(Tsoil1 - Tsoil2))
-  Tsoil1 <- Tsoil1 + dTsoil1.dt*dt  #Eq. (9.32) of de Arellano et al. (2015)
+  dTsoil1.dt <- (rTsoil*G - (2*pi/(86400))*(Tsoil1 - Tsoil2)) #Eq. (9.32) of de Arellano et al. (2015)
+  # Tsoil1 <- Tsoil1 + dTsoil1.dt*dt  #Eq. (9.32) of de Arellano et al. (2015)
   
   if (soilWTF) {
     # update soil water content, based on CLASS model
@@ -414,12 +415,12 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
     deltaq <- qabove - qM
     Fhq <- -1*rhobar*deltaq*(dh.dt-W)*1000  # entrainment flux of humidity [g/m2/s] NOTE:  assume CONSTANT air density!
     dq.dt <- (E - Fhq)/(rhobar*1000*h) # change of humidity in ABL [1/s]
-    qM <- qM+dq.dt*dt             # updated qM [g/g]
+    # qM <- qM+dq.dt*dt             # updated qM [g/g]
     # update ABL-averaged thetav
     dthetavM.dt <- (F0thetav - Fhthetav)/h  # change of thetav in ABL [K-kg/m^3/s]
     dthetavM.dt <- dthetavM.dt/rhobar        # [K-kg/m^3/s]=>[K/s]
-    thetavM <- thetavM + dthetavM.dt*dt
-    thetaM <- thetavM/(1+0.61*qM)   # potential temperature, from virtual pot temp [K];  Eq. 1.5.1b of Stull [1988]
+    # thetavM <- thetavM + dthetavM.dt*dt
+    # thetaM <- thetavM/(1+0.61*qM)   # potential temperature, from virtual pot temp [K];  Eq. 1.5.1b of Stull [1988]
     # update ABL-averaged CO2
     CO2flux.veg <- NA; CO2flux.ent <- NA; CO2flux.tot <- NA
     if (co2budgetTF) {
@@ -537,7 +538,7 @@ if (atmrespondTF) {
   dev.new()
   plot(result[,"time"]/3600,result[,"h"],type="l",xlab="Time [hour]",ylab="ABL height  h(t) [m]",
        cex.axis=1.3,cex.lab=1.3,lwd=2)
-  title(main=paste0(xmain,"\nBeta=",Beta,";  gamma=",signif(gamma,4)," [K/m]"),cex.main=1.2)
+  title(main=paste0(xmain,";  Beta=",Beta,";  gamma=",signif(gamma,4)," [K/m]"),cex.main=1.2)
   dev.copy(png,"ABLht.png");dev.off();print("ABLht.png written out")
   
   #!!!! (201019): debugging !!!!
