@@ -428,7 +428,7 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
       CO2flux.tot <- CO2flux.veg
       CO2flux.ent <- 0
       if(dh.dt>0){
-        CO2flux.ent<-(rhobar/(Md/1000))*(dh.dt - W)*(Cabove - Cair)   # entrainment flux of CO2 [umole/m2/s]
+        CO2flux.ent<-(rhobar/(Md/1000))*(dh.dt - W)*(Cabove - CO2)   # entrainment flux of CO2 [umole/m2/s]
         CO2flux.tot <- CO2flux.veg + CO2flux.ent
       } # if(dh.dt>0){
       dC.dt <- CO2flux.tot*(Md/1000)/(rhobar*h)  # dilute surface flux in box of height h to generate change in CO2 [ppm/s]
@@ -542,13 +542,13 @@ if (atmrespondTF) {
   dev.copy(png,"ABLht.png");dev.off();print("ABLht.png written out")
   
   #!!!! (201019): debugging !!!!
-  dev.new()
-  plot(result[,"time"]/3600,result[,"Tgrad"],type="l",xlab="Time [hour]",ylab="T - Ta [K]",
-       cex.axis=1.3,cex.lab=1.3,lwd=2)
+  #dev.new()
+  #plot(result[,"time"]/3600,result[,"Tgrad"],type="l",xlab="Time [hour]",ylab="T - Ta [K]",
+  #     cex.axis=1.3,cex.lab=1.3,lwd=2)
   
   dev.new()
-  plot(result[,"time"]/3600,result[,"dh.dt"],type="l",xlab="Time [hour]",ylab="dh.dt [m/s]",
-       cex.axis=1.3,cex.lab=1.3,lwd=2)
+  plot(result[,"time"]/3600,result[,"dh.dt"]*3600,type="l",xlab="Time [hour]",ylab="dh.dt [m/hr]",
+       cex.axis=1.3,cex.lab=1.3,lwd=2,ylim=c(-500,500))
   
 } #if(atmrespondTF){
 
