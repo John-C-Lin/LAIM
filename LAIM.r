@@ -259,7 +259,7 @@ thetavM <- thetaM*(1+0.61*qair)   # virtual potential temperature [K];  Eq. 1.5.
 
 yini <- c(T=Tinit, Ta=Ta.c[1]+273.15, qair=qair, thetavM=thetavM,
           Tsoil1=Tsoil1, Wsoil1=Wsoil1, h=hmin, CO2=Cair) 
-names(yini) <- c("T","Ta","qair","<thetav>","Tsoil1","Wsoil1","h","CO2")
+names(yini) <- c("T","Ta","qair","thetavM","Tsoil1","Wsoil1","h","CO2")
 
 ########################################################
 # initialize parameters
@@ -329,12 +329,12 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
       } # if (soilWTF)
       # Ball-Berry + Farquhar coupled stomatal conductance & photosynthesis model for vegetation resistance [s/m]
       hs <- e/esat  # fractional humidity (=1/RH) at leaf surface [.]
-      cs <- Cair  # CO2 concentration at leaf surface [umole/mole]
+      cs <- Cair    # CO2 concentration at leaf surface [umole/mole]
       BBFout <- BBF(SW=SWdn.t,Tleaf.C=T-273.15,hs=hs,beta.W=beta.W,cs=cs,Psurf=Psurf)  
       gsv <- BBFout["gsv"]  # stomatal conductance with respect to water vapor [mole H2O/m2/s]  
       rho.mole <- rho.surf*1000/Md # air density [kg/m3] => molar density [moles/m3]
       gsv <- gsv/rho.mole   # [mole/m2/s] => [m/s]
-      rveg <- 1/gsv        # vegetation resistance [s/m]
+      rveg <- 1/gsv         # vegetation resistance [s/m]
       An <- BBFout["An"]    # Net photosynthesis [umole/m2/s]
       ci <- BBFout["ci"]    # intercellular CO2 [umole/mole]
     } else {
@@ -368,7 +368,6 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
   # heat transport between surface and deep soil layer to update Tsoil1 from CLASS model
   rTsoil <- rTsoil.sat * (Wsat/Wsoil2)^(bb/(2*log(10)))
   dTsoil1.dt <- (rTsoil*G - (2*pi/(86400))*(Tsoil1 - Tsoil2)) #Eq. (9.32) of de Arellano et al. (2015)
-  # Tsoil1 <- Tsoil1 + dTsoil1.dt*dt  #Eq. (9.32) of de Arellano et al. (2015)
   
   if (soilWTF) {
     # update soil water content, based on CLASS model
@@ -378,8 +377,6 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
     Wsoil1eq <- Wsoil2 - aa*Wsat*((Wsoil2/Wsat)^pp)*(1-(Wsoil2/Wsat)^(8*pp))  #Eq. (9.37) of de Arellano et al. (2015)
     # Eq. (9.34) of de Arellano et al. (2015); NOTE:  use LE instead of LEsoil as in (9.34), and -1 multiplied by C1 that is missing in (9.34)
     dWsoil1.dt <- ((-C1/(rho.W*d1))*(LE/Lv) - (C2/86400)*(Wsoil1 - Wsoil2))
-    # dWsoil <- dWsoil1.dt*dt  
-    # Wsoil1 <- Wsoil1 + dWsoil
     if (Wsoil1 < 0) {dWsoil1.dt <- (0-Wsoil1)/dt;Wsoil1 <- 0}
   } #if (soilWTF) {
   
@@ -387,7 +384,6 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
   # Based on "zero-order jump" or "slab" model of convective boundary layer, described in Pg. 151~155 of Garratt [1992]
   CO2flux.veg <- NA; CO2flux.ent <- NA; CO2flux.tot <- NA
   if (atmrespondTF) {
-    #update ABL-averaged q
     #calculate surface virtual heat flux
     Lv <- latentheat(T-273.15)  # latent heat of vaporization [J/g]
     E <- LE/Lv   # surface moisture flux [g/m^2/s] 
@@ -404,19 +400,16 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
     } # if(ABLTF){
     
     rhobar <- rho.surf*(1-exp(-h/Hscale))*(Hscale/h)  # determine ABL-averaged air density [kg/m3]
-    # print(paste("h,rho.surf,rhobar:",signif(h,4),signif(rho.surf,4),signif(rhobar,4)))
     
     # calculate entrainment flux of humidity
     deltaq <- (qabove - qair)
-    # print(paste(signif(qabove,4),signif(qair,4),signif(deltaq,4)))
     if(dh.dt>=0)Fhq <- -1*rhobar*deltaq*(dh.dt-W)*1000  # entrainment flux of humidity [g/m2/s] NOTE:  assume CONSTANT air density!
     dq.dt <- (E - Fhq)/(rhobar*1000*h) # change of humidity in ABL [1/s]
     
     # update ABL-averaged thetav
     dthetavM.dt <- (F0thetav - Fhthetav)/h  # change of thetav in ABL [K-kg/m^3/s]
     dthetavM.dt <- dthetavM.dt/rhobar        # [K-kg/m^3/s]=>[K/s]
-    # thetavM <- thetavM + dthetavM.dt*dt
-    # thetaM <- thetavM/(1+0.61*qair)   # potential temperature, from virtual pot temp [K];  Eq. 1.5.1b of Stull [1988]
+    
     # update ABL-averaged CO2
     if (co2budgetTF) {
       CO2flux.veg <- (-1*An + Resp)  # surface CO2 flux [umole/m2/s]; photosynthesis is a negative flux (removal from atmosphere)
@@ -427,13 +420,8 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
         CO2flux.tot <- CO2flux.veg + CO2flux.ent
       } # if(dh.dt>0){
       dC.dt <- CO2flux.tot*(Md/1000)/(rhobar*h)  # dilute surface flux in box of height h to generate change in CO2 [ppm/s]
-      # Cair <- Cair + dC.dt*dt          # update CO2 concentration [ppm]
-      #print(paste("CO2:",signif(Cair,5)))
     } # if (co2budgetTF) {
-    # update ABL height
-    # h.orig <- h
-    # h <- h+dh.dt*dt
-    # if (F0thetav<=0.00&ABLTF){dh.dt <- (hmin - h.orig)/dt} # override value:  ABL collapses
+    
   } else{
     dthetavM.dt <- 0
     dq.dt <- 0
@@ -469,7 +457,6 @@ print(paste(filenm,"written out"))
 
 ########################################################
 # Plotting 
-
 # text on plot 
 xmain <- paste("vegcontrolTF=",vegcontrolTF)
 xmain <- paste(xmain,"  atmrespondTF=",atmrespondTF)
@@ -477,7 +464,7 @@ xmain <- paste(xmain,"\nABLTF=",ABLTF)
 xmain <- paste(xmain,"  soilWTF=",soilWTF)
 xmain <- paste(xmain,"\ndt=",dt,"[s]")
 # regenerate VPD from qstar and qair 
-e <- result[,"<q>"]*Psurf/(Rd/Rv)      # vapor pressure [hPa]
+e <- result[,"qair"]*Psurf/(Rd/Rv)      # vapor pressure [hPa]
 esat <- result[,"qstar"]*Psurf*(Rv/Rd)  # saturation vapor pressure [hPa]
 VPD <- 100*(esat-e)                     # vapor pressure deficit [Pa]
 
@@ -540,7 +527,7 @@ if (atmrespondTF) {
        cex.axis=1.3,cex.lab=1.3,lwd=2,ylim=c(-500,500))
   
   dev.new()
-  plot(result[,"time"]/3600,result[,"qair"]*1000,type="l",xlab="Time [hour]",ylab="<q> [g/kg]",
+  plot(result[,"time"]/3600,result[,"qair"]*1000,type="l",xlab="Time [hour]",ylab="qair [g/kg]",
        cex.axis=1.3,cex.lab=1.3,lwd=2)
   lines(result[,"time"]/3600,result[,"deltaq"]*1000,col="darkgray")
   abline(h=0,lty=2)
