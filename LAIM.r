@@ -254,22 +254,21 @@ print(paste("Tinit [oC]:",signif(Tinit-273.15,5),";   Rn-H-LE-G =",signif(tmp,4)
 #############################################################################################################
 # initialize state variables
 thetaM <- Ta.c[1]+273.15
-qM <- qair.presc   # initialize with prescribed specific humidity [g/g]
-# if (atmrespondTF) {qa <- qM} else {qa <- qair.presc} 
-thetavM <- thetaM*(1+0.61*qM)   # virtual potential temperature [K];  Eq. 1.5.1b of Stull [1988]
+qair <- qair.presc   # initialize with prescribed specific humidity [g/g]
+thetavM <- thetaM*(1+0.61*qair)   # virtual potential temperature [K];  Eq. 1.5.1b of Stull [1988]
 
-yini <- c(T=Tinit, Ta=Ta.c[1]+273.15, qM=qM, thetavM=thetavM,
+yini <- c(T=Tinit, Ta=Ta.c[1]+273.15, qair=qair, thetavM=thetavM,
           Tsoil1=Tsoil1, Wsoil1=Wsoil1, h=hmin, CO2=Cair) 
-names(yini) <- c("T","Ta","<q>","<thetav>","Tsoil1","Wsoil1","h","CO2")
+names(yini) <- c("T","Ta","qair","<thetav>","Tsoil1","Wsoil1","h","CO2")
 
 ########################################################
 # initialize parameters
 # 0. numerical parameters
 parms <- c(dt=dt,DTtol=DTtol,countTmax=countTmax)
 # 1.  flags
-parms <- c(parms,vegcontrolTF=vegcontrolTF,atmresopndTF=atmrespondTF,ABLTF=ABLTF,soilWTF=soilWTF,co2budgetTF=co2budgetTF)
+parms <- c(parms,vegcontrolTF=vegcontrolTF,atmrespondTF=atmrespondTF,ABLTF=ABLTF,soilWTF=soilWTF,co2budgetTF=co2budgetTF)
 # 2.  atmospheric conditions 
-parms <- c(parms,Psurf=Psurf,qair.presc=qair.presc,Hscale=Hscale,hmin=hmin,Beta=Beta,gamma=gamma,W=W,Ur=Ur,zr=zr,Cabove=Cabove)
+parms <- c(parms,Psurf=Psurf,qair.presc=qair.presc,Hscale=Hscale,hmin=hmin,Beta=Beta,gamma=gamma,qabove=qabove,W=W,Ur=Ur,zr=zr,Cabove=Cabove)
 # 3.  land surface characteristics
 parms <- c(parms,gvmax=gvmax,albedo=albedo,albedo.c=albedo.c,z0=z0,epsilon.s=epsilon.s,LAI=LAI,Kb=Kb,Hveg=Hveg,rho.veg=rho.veg,Cp.veg=Cp.veg,Cs=Cs)
 # 4.  soil characteristics
@@ -304,14 +303,9 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
     countT <- countT + 1
     if(countT > countTmax)stop("T does not converge")
       
-    #if (atmrespondTF) {
-    #  thetaM <- thetavM/(1+0.61*qM) 
-    #  Ta <- thetaM   
-    #  qa <- qM
-    #} else {
     if (!atmrespondTF) {
       Ta <- approx(x=as.numeric(names(Ta.c_DAY))*3600,y=Ta.c_DAY,xout=time%%(24*3600))$y+273.15  #use prescribed value
-      qM <- qair.presc
+      qair <- qair.presc
     } # if(atmrespondTF){
     
     # determine sensible heat flux
@@ -323,7 +317,7 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
     beta.W <- 1   # water stress parameter (dependent on soil moisture)
     Lv <- 1000*latentheat(T-273.15)  # latent heat of vaporization [J/kg]
     esat <- satvap(T-273.15)/100 # saturation specific humidity [hPa]
-    e <- qM*Psurf/(Rd/Rv)        # vapor pressure [hPa]
+    e <- qair*Psurf/(Rd/Rv)        # vapor pressure [hPa]
     VPD <- 100*(esat-e)            # vapor pressure deficit [Pa]
     qstar <- (Rd/Rv)*esat/Psurf    # saturation specific humidity [g/g]
     if (vegcontrolTF) {
@@ -353,7 +347,7 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
     An <- An*scale.canopy
     gv <- (1/rveg)*scale.canopy
     rveg <- 1/gv
-    LE <- (Lv*rho.surf/(raero+rveg))*(qstar-qM) #[W/m2]
+    LE <- (Lv*rho.surf/(raero+rveg))*(qstar-qair) #[W/m2]
       
     # !!! determine RESPIRATION!!!
     Resp <- 0
@@ -413,15 +407,16 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
     # print(paste("h,rho.surf,rhobar:",signif(h,4),signif(rho.surf,4),signif(rhobar,4)))
     
     # calculate entrainment flux of humidity
-    deltaq <- qabove - qM
+    deltaq <- (qabove - qair)
+    # print(paste(signif(qabove,4),signif(qair,4),signif(deltaq,4)))
     if(dh.dt>=0)Fhq <- -1*rhobar*deltaq*(dh.dt-W)*1000  # entrainment flux of humidity [g/m2/s] NOTE:  assume CONSTANT air density!
     dq.dt <- (E - Fhq)/(rhobar*1000*h) # change of humidity in ABL [1/s]
-    # qM <- qM+dq.dt*dt             # updated qM [g/g]
+    
     # update ABL-averaged thetav
     dthetavM.dt <- (F0thetav - Fhthetav)/h  # change of thetav in ABL [K-kg/m^3/s]
     dthetavM.dt <- dthetavM.dt/rhobar        # [K-kg/m^3/s]=>[K/s]
     # thetavM <- thetavM + dthetavM.dt*dt
-    # thetaM <- thetavM/(1+0.61*qM)   # potential temperature, from virtual pot temp [K];  Eq. 1.5.1b of Stull [1988]
+    # thetaM <- thetavM/(1+0.61*qair)   # potential temperature, from virtual pot temp [K];  Eq. 1.5.1b of Stull [1988]
     # update ABL-averaged CO2
     if (co2budgetTF) {
       CO2flux.veg <- (-1*An + Resp)  # surface CO2 flux [umole/m2/s]; photosynthesis is a negative flux (removal from atmosphere)
@@ -444,13 +439,11 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
     dq.dt <- 0
   } # if(atmrespondTF){
   
-  #!!!!! debugging
-  Tgrad <- T - Ta
   
-  #derivatives of variables
+  # derivatives of variables--need to be returned as part of call to 'ode'
   DT <- DT
-  DTa <- dthetavM.dt/(1+0.61*qM)
-  DqM <- dq.dt
+  DTa <- dthetavM.dt/(1+0.61*qair)
+  Dqair <- dq.dt
   DthetavM <- dthetavM.dt
   DTsoil1 <- dTsoil1.dt
   DWsoil1 <- dWsoil1.dt
@@ -461,9 +454,9 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
   vars2<-c(SWdn=SWdn.t,LWdn=LWdn.t,Rnet=Rnet,LWup=as.numeric(LWup),H=as.numeric(H),LE=as.numeric(LE),G=G,
            qstar=as.numeric(qstar),An=as.numeric(An),rveg=as.numeric(rveg),raero=raero,
            CO2flux.veg=as.numeric(CO2flux.veg),CO2flux.ent=as.numeric(CO2flux.ent),CO2flux.tot=as.numeric(CO2flux.tot),
-           dh.dt=as.numeric(dh.dt),Tgrad=as.numeric(Tgrad))
+           dh.dt=as.numeric(dh.dt),E=as.numeric(E),Fhq=as.numeric(Fhq),deltaq=as.numeric(deltaq))
  
-  return(list(c(DT,DTa,DqM,DthetavM,DTsoil1,DWsoil1,Dh,DCO2),vars2))
+  return(list(c(DT,DTa,Dqair,DthetavM,DTsoil1,DWsoil1,Dh,DCO2),vars2))
   })
 } # LAIM <-function(time,state,parms,SWdn_TIME,Ta_TIME){
 
@@ -500,11 +493,11 @@ legend(x="topright",c("Tsurf","Tair","Tsoil"),lwd=2,lty=c(1,3,1),col=c("black","
 plot(result[,"time"]/3600,VPD,type="l",xlab="Time [hour]",ylab="VPD [Pa]",lwd=2,
      cex.axis=1.3,cex.lab=1.3,main=xmain)
 
-ylims <- range(result[,c("qstar","<q>")]*1000)
+ylims <- range(result[,c("qstar","qair")]*1000)
 plot(result[,"time"]/3600,result[,"qstar"]*1000,type="l",xlab="Time [hour]",ylab="Specific humidity [g/kg]",
      cex.axis=1.3,cex.lab=1.3,lwd=2,ylim=ylims,main=xmain)
-lines(result[,"time"]/3600,result[,"<q>"]*1000,lty=3,lwd=1.5)
-legend(x="topright",c("qstar","<q>"),lwd=2,lty=c(1,3))
+lines(result[,"time"]/3600,result[,"qair"]*1000,lty=3,lwd=1.5)
+legend(x="topright",c("qstar","qair"),lwd=2,lty=c(1,3))
 
 ylims <- range(result[,c("raero","rveg")])
 plot(result[,"time"]/3600,result[,"raero"],type="l",xlab="Time [hour]",ylab="Resistances [s/m]",
@@ -542,13 +535,21 @@ if (atmrespondTF) {
   dev.copy(png,"ABLht.png");dev.off();print("ABLht.png written out")
   
   #!!!! (201019): debugging !!!!
-  #dev.new()
-  #plot(result[,"time"]/3600,result[,"Tgrad"],type="l",xlab="Time [hour]",ylab="T - Ta [K]",
-  #     cex.axis=1.3,cex.lab=1.3,lwd=2)
-  
   dev.new()
   plot(result[,"time"]/3600,result[,"dh.dt"]*3600,type="l",xlab="Time [hour]",ylab="dh.dt [m/hr]",
        cex.axis=1.3,cex.lab=1.3,lwd=2,ylim=c(-500,500))
+  
+  dev.new()
+  plot(result[,"time"]/3600,result[,"qair"]*1000,type="l",xlab="Time [hour]",ylab="<q> [g/kg]",
+       cex.axis=1.3,cex.lab=1.3,lwd=2)
+  lines(result[,"time"]/3600,result[,"deltaq"]*1000,col="darkgray")
+  abline(h=0,lty=2)
+  
+  dev.new()
+  ylims <- range(result[,c("E","Fhq")])
+  plot(result[,"time"]/3600,result[,"E"],type="l",xlab="Time [hour]",ylab="E or Fhq [g/m2/s]",
+       cex.axis=1.3,cex.lab=1.3,lwd=2,ylim=ylims,col="blue")
+  lines(result[,"time"]/3600,result[,"Fhq"],col="black",lwd=2)
   
 } #if(atmrespondTF){
 
