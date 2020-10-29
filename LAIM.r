@@ -63,7 +63,7 @@ raero.f <- function(Ur=1,zr=50,z0=z0,d=0,rho=1){
 
 #################################################
 # Land surface characteristics
-gvmax <- 1/50      # max vegetation conductance [m/s]; reciprocal of vegetation resistance
+gvmax <- 1/50      # max vegetation conductance [m/s] (reciprocal of vegetation resistance) when vegcontrol is FALSE
 albedo.c <- 0.1    # surface albedo
 albedo <- albedo.c # surface albedo
 z0 <- 0.5          # roughness length [m]
