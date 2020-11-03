@@ -118,7 +118,8 @@ BBF <- function(SW,Tleaf.C,hs,beta.W=1.0,cs=400,Psurf=1000){
   An <- A - Rd
   
   # stomatal conductance with respect to water vapor, following Ball-Berry model [mole H2O/m2/s];  Eq. (12.14) of Bonan (2019)
-  gsv <- g0 + g1*(An/cs)*hs
+  gsv <- g0
+  if(An > 0) gsv <- g0 + g1*(An/cs)*hs
   
   result <- c(gsv, An, ci)
   names(result) <- c("gsv","An","ci")
