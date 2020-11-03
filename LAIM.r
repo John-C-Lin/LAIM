@@ -182,7 +182,7 @@ Cabove <- Cair    # CO2 concentration [ppm] above ABL
 
 
 # initialize T with equilibrium value (determined through "uniroot")
-f<-function(T,Ta,SWdn,LWdn,albedo,epsilon.s,Tsoil1,Ur,zr,z0,gvmax=gvmax,Psurf=1000,Hscale=8000){
+f<-function(T,Ta,SWdn,LWdn,albedo,epsilon.s,Tsoil1,Ur,zr,z0,gvmax=gvmax,CO2=Cair,Psurf=1000,Hscale=8000){
   # --------------Physical constants--------#
   Cp <- 1005.7; Cv <- 719 # heat capacities @ constant pressure & volume [J/kg/K] (Appendix 2 of Emanuel [1994])
   g <- 9.80665 # standard surface gravity [m/s2]
@@ -208,7 +208,7 @@ f<-function(T,Ta,SWdn,LWdn,albedo,epsilon.s,Tsoil1,Ur,zr,z0,gvmax=gvmax,Psurf=10
   if (vegcontrolTF) {
     # Ball-Berry + Farquhar coupled stomatal conductance & photosynthesis model for vegetation resistance [s/m]
     hs <- e/esat  # fractional humidity (=1/RH) at leaf surface [.]
-    cs <- Cair  # CO2 concentration at leaf surface [umole/mole]
+    cs <- CO2     # CO2 concentration at leaf surface [umole/mole]
     BBFout <- BBF(SW=SWdn,Tleaf.C=T-273.15,hs=hs,beta.W=1.0,cs=cs,Psurf=Psurf)  
     gsv <- BBFout["gsv"]  # stomatal conductance with respect to water vapor [mole H2O/m2/s]  
     rho.mole <- rho.surf*1000/Md # air density [kg/m3] => molar density [moles/m3]
