@@ -6,7 +6,7 @@ require("deSolve")   #load deSolve package to access function "ode"
 #################################################
 # Flags to Turn On/Off Processes 
 vegcontrolTF <- TRUE    # vegetation control?
-atmrespondTF <- FALSE   # does atmosphere respond to surface fluxes?
+atmrespondTF <- TRUE    # does atmosphere respond to surface fluxes?
 ABLTF<- TRUE            # does ABL growth or decay, according to surface heat fluxes?
 soilWTF <- TRUE         # turn on soil moisture feedbacks?
 co2budgetTF <- TRUE     # track atmospheric CO2, based on surface and entrainment fluxes? 
@@ -232,6 +232,7 @@ f<-function(T,Ta,SWdn,LWdn,albedo,epsilon.s,Tsoil1,Ur,zr,z0,gvmax=gvmax,CO2=Cair
   gveg <- (1/rveg)*scale.canopy
   rveg <- 1/gveg
   LE <- (Lv*rho.surf/(raero + rveg))*(qstar - qair.presc) #[W/m2]
+  if(LE<0) LE <- 0
   
   # determine ground heat flux from two-layer (force-restore) soil model to calculate ground heat flux and soil moisture
   G <- Lambda * (T - Tsoil1)
@@ -349,7 +350,8 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
     gv <- (1/rveg)*scale.canopy
     rveg <- 1/gv
     LE <- (Lv*rho.surf/(raero+rveg))*(qstar-qair) #[W/m2]
-      
+    if(LE<0) LE <- 0
+    
     # !!! determine RESPIRATION!!!
     Resp <- 0
       
