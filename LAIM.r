@@ -226,7 +226,8 @@ f<-function(T,Ta,SWdn,LWdn,albedo,epsilon.s,Tsoil1,Ur,zr,z0,gvmax=gvmax,CO2=Cair
   gveg <- (1/rveg)*scale.canopy
   rveg <- 1/gveg
   LE <- (Lv*rho.surf/(raero + rveg))*(qstar - qair) #[W/m2]
-
+  if(LE<0) LE <- 0
+  
   # determine ground heat flux from two-layer (force-restore) soil model to calculate ground heat flux and soil moisture
   G <- Lambda * (T - Tsoil1)
   
@@ -322,6 +323,7 @@ while (iterateT) {   #iterate until convergence
   gv <- (1/rveg)*scale.canopy
   rveg <- 1/gv
   LE <- (Lv*rho.surf/(raero+rveg))*(qstar-qa) #[W/m2]
+  if(LE<0) LE <- 0
   
   # !!! determine RESPIRATION!!!
   Resp <- 0
