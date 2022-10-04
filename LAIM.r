@@ -225,6 +225,7 @@ f<-function(T,Ta,SWdn,LWdn,albedo,epsilon.s,Tsoil1,Ur,zr,z0,gvmax=gvmax,CO2=Cair
     ci <- BBFout["ci"]    # intercellular CO2 [umole/mole]
   } else {
     rveg <- 1/gvmax
+    An <- NA; ci <- NA
   } # if(vegcontrolTF){
   # scale up photosynthesis and stomatal conductance to CANOPY values using Big-Leaf Model, based on Eq. (15.5) of Bonan (2019)
   scale.canopy<-(1-exp(-Kb*LAI))/Kb
@@ -381,6 +382,8 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
     # Eq. (9.34) of de Arellano et al. (2015); NOTE:  use LE instead of LEsoil as in (9.34), and -1 multiplied by C1 that is missing in (9.34)
     dWsoil1.dt <- ((-C1/(rho.W*d1))*(LE/Lv) - (C2/86400)*(Wsoil1 - Wsoil2))
     if (Wsoil1 < 0) {dWsoil1.dt <- (0-Wsoil1)/dt;Wsoil1 <- 0}
+  } else {
+    dWsoil1.dt <- 0
   } #if (soilWTF) {
   
   # if want atmosphere to respond
@@ -428,8 +431,14 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
     } # if (co2budgetTF) {
     
   } else{
+    Lv <- latentheat(T-273.15)  # latent heat of vaporization [J/g]
+    E <- LE/Lv   # surface moisture flux [g/m^2/s] 
+    Fhq <- 0
+    deltaq <- 0
+    dC.dt <- 0
     dthetavM.dt <- 0
     dq.dt <- 0
+    dh.dt <- 0
   } # if(atmrespondTF){
   
   
@@ -569,5 +578,3 @@ if (vegcontrolTF&atmrespondTF&co2budgetTF) {
          col=c("black","darkgray","darkgray"),text.col=c("black","darkgray","darkgray"))
   dev.copy(png,"CO2.png");dev.off();print("CO2.png written out")
 } #if (vegcontrolTF&atmrespondTF) {
-
-
