@@ -486,33 +486,33 @@ VPD <- 100*(esat-e)                     # vapor pressure deficit [Pa]
 dev.new(); par(mfrow=c(2,2),cex.main=0.7)   
 ylims <- range(result[,c("T","Ta","Tsoil1")]-273.15)
 plot(result[,"time"]/3600,result[,"T"]-273.15,type="l",xlab="Time [hour]",ylab="Temperature [deg-C]",
-     cex.axis=1.3,cex.lab=1.3,lwd=2,ylim=ylims,main=xmain)
+     cex.axis=1.3,cex.lab=1.3,lwd=3,ylim=ylims,main=xmain)
 lines(result[,"time"]/3600,result[,"Ta"]-273.15,lty=3,lwd=1.5)
 lines(result[,"time"]/3600,result[,"Tsoil1"]-273.15,lty=1,lwd=2,col="darkgray")
-legend(x="topright",c("Tsurf","Tair","Tsoil"),lwd=2,lty=c(1,3,1),col=c("black","black","darkgray"))
+legend(x="topright",c("Tsurf","Tair","Tsoil"),lwd=c(3,2,2),lty=c(1,3,1),col=c("black","black","darkgray"))
 
 plot(result[,"time"]/3600,VPD,type="l",xlab="Time [hour]",ylab="VPD [Pa]",lwd=2,
      cex.axis=1.3,cex.lab=1.3,main=xmain)
 
 ylims <- range(result[,c("qstar","qair")]*1000)
 plot(result[,"time"]/3600,result[,"qstar"]*1000,type="l",xlab="Time [hour]",ylab="Specific humidity [g/kg]",
-     cex.axis=1.3,cex.lab=1.3,lwd=2,ylim=ylims,main=xmain)
+     cex.axis=1.3,cex.lab=1.3,lwd=3,ylim=ylims,main=xmain)
 lines(result[,"time"]/3600,result[,"qair"]*1000,lty=3,lwd=1.5)
-legend(x="topright",c("qstar","qair"),lwd=2,lty=c(1,3))
+legend(x="topright",c("qstar","qair"),lwd=c(3,2),lty=c(1,3))
 
 ylims <- range(result[,c("raero","rveg")])
 plot(result[,"time"]/3600,result[,"raero"],type="l",xlab="Time [hour]",ylab="Resistances [s/m]",
      cex.axis=1.3,cex.lab=1.3,lwd=1.5,lty=3,ylim=ylims,main=xmain,col="black")
-lines(result[,"time"]/3600,result[,"rveg"],lty=1,lwd=2,col="black")
-legend(x="topright",c("r_veg","r_aero"),lwd=2,lty=c(1,3),col=c("black","black"))
+lines(result[,"time"]/3600,result[,"rveg"],lty=1,lwd=3,col="black")
+legend(x="topright",c("r_veg","r_aero"),lwd=c(2,3),lty=c(1,3),col=c("black","black"))
 dev.copy(png,"T_q_r.png");dev.off();print("T_q_r.png written out")
 
 # plot with energy fluxes 
 dev.new()
 matplot(result[,"time"]/3600,result[,c("Rnet","LWup","H","LE","G")],type="l",lty=c(1,2,1,1,1),
-        cex.axis=1.5,cex.lab=1.5,col=c("black","black","orange","blue","darkgreen"),lwd=2,xlab="Time [hr]",ylab="")
+        cex.axis=1.5,cex.lab=1.5,col=c("black","black","orange","blue","darkgreen"),lwd=c(3,2,2,2,2),xlab="Time [hr]",ylab="")
 mtext(text=expression(paste("Energy Fluxes [W ",m^-2,"]",sep="")),line=2.3,cex=1.4,side=2)
-legend(x="topright",c("Rnet","LWup","H","LE","G"),col=c("black","black","orange","blue","darkgreen"),lwd=2,lty=c(1,2,1,1,1))
+legend(x="topright",c("Rnet","LWup","H","LE","G"),col=c("black","black","orange","blue","darkgreen"),lwd=c(3,2,2,2,2),lty=c(1,2,1,1,1))
 title(main=xmain)
 dev.copy(png,"Energyfluxes.png");dev.off();print("Energyflux.png written out")
 
@@ -551,6 +551,7 @@ if (atmrespondTF) {
   plot(result[,"time"]/3600,result[,"E"],type="l",xlab="Time [hour]",ylab="E or Fhq [g/m2/s]",
        cex.axis=1.3,cex.lab=1.3,lwd=2,ylim=ylims,col="blue")
   lines(result[,"time"]/3600,result[,"Fhq"],col="black",lwd=2)
+  legend(x="topright",c("E","Fhq"),col=c("blue","black"),lwd=2,lty=1)
   
 } #if(atmrespondTF){
 
