@@ -26,7 +26,10 @@ countTmax <- 1000  # max number of times to iterate T calculation
 
 #################################################
 # Load in functions
-if(vegcontrolTF)source("Ball_Berry_Farquhar.r")  #load Ball-Berry + Farquhar coupled stomatal conductance & photosynthesis model  
+if(vegcontrolTF){
+  if(!file.exists("Ball_Berry_Farquhar.r"))stop(paste("Can not find 'Ball_Berry_Farquhar.r' in working directory:",getwd()))
+  source("Ball_Berry_Farquhar.r")  #load Ball-Berry + Farquhar coupled stomatal conductance & photosynthesis model  
+} # if(vegcontrolTF){
 
 latentheat <- function(T.c){
   # Takes temperature [C] and returns value of latent heat of vaporization [J/g]
@@ -541,18 +544,11 @@ if (atmrespondTF) {
        cex.axis=1.3,cex.lab=1.3,lwd=2,ylim=c(-500,500))
   
   dev.new()
-  plot(result[,"time"]/3600,result[,"qair"]*1000,type="l",xlab="Time [hour]",ylab="qair [g/kg]",
-       cex.axis=1.3,cex.lab=1.3,lwd=2)
-  lines(result[,"time"]/3600,result[,"deltaq"]*1000,col="darkgray")
-  abline(h=0,lty=2)
-  
-  dev.new()
   ylims <- range(result[,c("E","Fhq")])
   plot(result[,"time"]/3600,result[,"E"],type="l",xlab="Time [hour]",ylab="E or Fhq [g/m2/s]",
        cex.axis=1.3,cex.lab=1.3,lwd=2,ylim=ylims,col="blue")
   lines(result[,"time"]/3600,result[,"Fhq"],col="black",lwd=2)
-  legend(x="topright",c("E","Fhq"),col=c("blue","black"),lwd=2,lty=1)
-  
+  legend(x="topright",c("E","Fhq"),col=c("blue","black"),lwd=2,lty=1) 
 } #if(atmrespondTF){
 
 if (vegcontrolTF) {
