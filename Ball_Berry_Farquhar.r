@@ -9,12 +9,14 @@ BBF <- function(SW,Tleaf.C,hs,beta.W=1.0,cs=400,Psurf=1000){
   # Psurf is surface pressure [hPa]
   # hs is fractional humidity (=RH/100) at leaf surface [.]
   # cs is CO2 concentration at leaf surface [umole/mole]
+  if(length(SW)>1|length(Tleaf.C)>1|length(hs)>1|length(beta.W)>1|length(cs)>1|length(Psurf)>1)
+    stop("BBF:  arguments all need to have length=1")
   
   Psurf <- Psurf*100  # [hPa]=>[Pa]
   
   #################################################
   # Stomatal conductance variables 
-  g1 <- 9     #slope of Ball-Berry relatinnship
+  g1 <- 9     #slope of Ball-Berry relationship
   g0 <- 0.005 # minimum stomatal conductance [mole H2O/m2/s]
   #################################################
   
