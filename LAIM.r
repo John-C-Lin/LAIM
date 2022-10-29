@@ -153,7 +153,7 @@ rho.W <- 1000 # density of water [kg/m3]
 # Downward shortwave radiation
 t.hr<-0:24
 # a) hourly varying SWdn
-SWdn<--15*(t.hr-12)^2+800 # hourly downward shortwave radiation [W/m2]
+SWdn<--15*(t.hr-12)^2+700 # hourly downward shortwave radiation [W/m2]
 names(SWdn)<-t.hr
 SWdn[as.character(c(0:5,19:24))]<-0 # night time:  set to 0
 SWdn_DAY <- SWdn
@@ -162,7 +162,7 @@ SWdn_DAY <- SWdn
 # SWdn[1:length(SWdn)]<-1000
 
 # Downward longwave radiation
-LWdn <- SWdn; LWdn[1:length(LWdn)] <- 350 # constant downward longwave radiation [W/m2]
+LWdn <- SWdn; LWdn[1:length(LWdn)] <- 300 # constant downward longwave radiation [W/m2]
 LWdn_DAY <- LWdn
 
 # -----------Atmospheric conditions----------#
@@ -173,7 +173,7 @@ Ta.c[1:length(Ta.c)] <- 5    # override with CONSTANT air temperature [deg-C]
 Ta.c_DAY <- Ta.c
 
 # specific humidity of air:  determine from RH, air temperature
-RH <- 0.8
+RH <- 0.9
 e <- RH*satvap(mean(Ta.c))/100  #vapor pressure [hPa]
 Psurf <- 1000     #surface pressure [hPa] 
 qair.presc <- (Rd/Rv)*e/Psurf   #prescribed specific humidity [g/g]
