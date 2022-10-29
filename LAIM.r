@@ -334,7 +334,8 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
         if (Wsoil1 <= Wwilt) beta.W <- 0
       } # if (soilWTF)
       # Ball-Berry + Farquhar coupled stomatal conductance & photosynthesis model for vegetation resistance [s/m]
-      hs <- e/esat  # fractional humidity (=1/RH) at leaf surface [.]
+      hs <- e/esat  # fractional humidity (=1/RH) at leaf surface [.]   
+      if(hs<0.7) hs <- hs + 0.3   #!!! quick adjustment that ensures leaf surface is not too dry...accounts for higher humidity within canopy  !!!#
       cs <- CO2    # CO2 concentration at leaf surface [umole/mole]
       BBFout <- BBF(SW=SWdn.t,Tleaf.C=T-273.15,hs=hs,beta.W=beta.W,cs=cs,Psurf=Psurf)  
       gsv <- BBFout["gsv"]  # stomatal conductance with respect to water vapor [mole H2O/m2/s]  
