@@ -14,8 +14,8 @@ BBF <- function(SW,Tleaf.C,hs,beta.W=1.0,cs=400,Psurf=1000){
   
   #################################################
   # Stomatal conductance variables 
-  g1 <- 9    #slope of Ball-Berry relatinnship
-  g0 <- 0.01 # minimum stomatal conductance [mole H2O/m2/s]
+  g1 <- 9     #slope of Ball-Berry relatinnship
+  g0 <- 0.005 # minimum stomatal conductance [mole H2O/m2/s]
   #################################################
   
   #################################################
