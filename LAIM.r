@@ -468,11 +468,40 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
   })
 } # LAIM <-function(time,state,parms,SWdn_TIME,Ta_TIME){
 
+
 ########################################################
-# call "ode" to integrate LAIM model in time
-result <- ode(yini, times, LAIM, parms, SWdn_DAY=SWdn_DAY, LWdn_DAY=LWdn_DAY,Ta.c_DAY=Ta.c_DAY, method = "lsoda")
-filenm <- "result.csv"; write.csv(result,file=filenm)
-print(paste(filenm,"written out"))
+# Time integration: call LAIM function using ode()
+if(atmrespondTF&ABLTF&t.day>1){
+  print(paste("==========Multiple calls to ode:=========="))
+  result <- NULL
+  for(t.dd in 1:(ceiling(max((times)/(3600*24))))){
+    print(paste("TIME INTEGRATION: DAY",t.dd))
+    sel <- times>=(3600*24*(t.dd-1))&times<(3600*24*(t.dd))  #!!! still potentially missing last time step on last day !!!
+    times.sub <- times[sel]
+    # multiple calls to "ode", each time by 1 day, to allow for entrainment of residual layer
+    if(t.dd>1){
+      ilast <- nrow(result.tmp)
+      #  find qair in ABL just before the ABL collapses, and use it as the humidity in residual layer that would be entrained into ABL following day
+      qair.resid <- result.tmp[which(result.tmp$h==max(result.tmp$h)),"qair"]
+      print(paste("specific humidity of residual layer [g/g]:",signif(qair.resid,5)))
+      parms["qabove"] <- qair.resid   # assign residual layer humidity as humdity above ABL
+      yini <- c(T=result.tmp$T[ilast], Ta=result.tmp$Ta[ilast], qair=result.tmp$qair[ilast], thetavM=result.tmp$thetavM[ilast],
+                Tsoil1=result.tmp$Tsoil1[ilast], Wsoil1=result.tmp$Wsoil1[ilast], h=result.tmp$h[ilast], CO2=result.tmp$CO2[ilast])
+      names(yini) <- c("T","Ta","qair","thetavM","Tsoil1","Wsoil1","h","CO2")
+    } # if(t.dd>1){
+    result.tmp <- ode(yini, times.sub, LAIM, parms, SWdn_DAY=SWdn_DAY, LWdn_DAY=LWdn_DAY,Ta.c_DAY=Ta.c_DAY, method = "lsoda")
+    result.tmp <- data.frame(result.tmp)
+    result <- rbind(result,result.tmp)
+  } # for(t.dd in 1:(t.day+1)){
+  filenm <- "result.csv"; write.csv(result,file=filenm)
+  print(paste(filenm,"written out"))
+} else {
+  # single call "ode" to integrate LAIM model in time
+  result <- ode(yini, times, LAIM, parms, SWdn_DAY=SWdn_DAY, LWdn_DAY=LWdn_DAY,Ta.c_DAY=Ta.c_DAY, method = "lsoda")
+  result <- data.frame(result)
+  filenm <- "result.csv"; write.csv(result,file=filenm)
+  print(paste(filenm,"written out"))
+} # if(atmrespondTF&ABLTF&t.day>1){
 
 
 ########################################################
