@@ -539,19 +539,7 @@ if (atmrespondTF) {
   plot(result[,"time"]/3600,result[,"h"],type="l",xlab="Time [hour]",ylab="ABL height  h(t) [m]",
        cex.axis=1.3,cex.lab=1.3,lwd=2)
   title(main=paste0(xmain,";  Beta=",Beta,";  gamma=",signif(gamma,4)," [K/m]"),cex.main=1.2)
-  dev.copy(png,"ABLht.png");dev.off();print("ABLht.png written out")
-  
-  #!!!! (201019): debugging !!!!
-  dev.new()
-  plot(result[,"time"]/3600,result[,"dh.dt"]*3600,type="l",xlab="Time [hour]",ylab="dh.dt [m/hr]",
-       cex.axis=1.3,cex.lab=1.3,lwd=2,ylim=c(-500,500))
-  
-  dev.new()
-  ylims <- range(result[,c("E","Fhq")])
-  plot(result[,"time"]/3600,result[,"E"],type="l",xlab="Time [hour]",ylab="E or Fhq [g/m2/s]",
-       cex.axis=1.3,cex.lab=1.3,lwd=2,ylim=ylims,col="blue")
-  lines(result[,"time"]/3600,result[,"Fhq"],col="black",lwd=2)
-  legend(x="topright",c("E","Fhq"),col=c("blue","black"),lwd=2,lty=1) 
+  dev.copy(png,"ABLht.png");dev.off();print("ABLht.png written out") 
 } #if(atmrespondTF){
 
 if (vegcontrolTF) {
