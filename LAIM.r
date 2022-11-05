@@ -485,6 +485,10 @@ if(atmrespondTF&ABLTF&t.day>1){
       qair.resid <- result.tmp[which(result.tmp$h==max(result.tmp$h)),"qair"]
       print(paste("specific humidity of residual layer [g/g]:",signif(qair.resid,5)))
       parms["qabove"] <- qair.resid   # assign residual layer humidity as humdity above ABL
+      #  find [CO2] in ABL just before the ABL collapses, and use it as the [CO2] in residual layer that would be entrained into ABL following day
+      Cair.resid <- result.tmp[which(result.tmp$h==max(result.tmp$h)),"CO2"]
+      print(paste("CO2 of residual layer [ppm]:",signif(Cair.resid,5)))
+      parms["Cabove"] <- Cair.resid   # assign residual layer [CO2] as [CO2] above ABL
       yini <- c(T=result.tmp$T[ilast], Ta=result.tmp$Ta[ilast], qair=result.tmp$qair[ilast], thetavM=result.tmp$thetavM[ilast],
                 Tsoil1=result.tmp$Tsoil1[ilast], Wsoil1=result.tmp$Wsoil1[ilast], h=result.tmp$h[ilast], CO2=result.tmp$CO2[ilast])
       names(yini) <- c("T","Ta","qair","thetavM","Tsoil1","Wsoil1","h","CO2")
