@@ -74,6 +74,8 @@ z0 <- 0.5          # roughness length [m]
 epsilon.s <- 0.97  # surface emissivity for forest, according to Jin & Liang (2006)
 LAI <- 3.0         # average leaf area index; for a forest like Harvard Forest, ~3.0 over the year [.]
 Kb <- 0.5          # extinction coefficient within plant canopy [.]; average value ~0.5:  https://link.springer.com/article/10.1007/s11707-014-0446-7
+Q10 <- 2           # temperature-dependence of respiration:  what factor does rate increase for 10-deg C increase
+Resp25 <- 2        # respiration rate at 25-deg C [umole CO2/m2/s]
 # heat capacity of land surface
 # a) heat capacity based on soil
 # D <- 0.1*(1/24)          # the depth of soil that temp fluctuations would penetrate [m]; 0.1m is roughly the depth that would penetrate on diurnal timescales
@@ -272,13 +274,17 @@ names(yini) <- c("T","Ta","qair","thetavM","Tsoil1","Wsoil1","h","CO2")
 # 0. numerical parameters
 parms <- c(dt=dt,DTtol=DTtol,countTmax=countTmax)
 # 1.  flags
-parms <- c(parms,vegcontrolTF=vegcontrolTF,atmrespondTF=atmrespondTF,ABLTF=ABLTF,soilWTF=soilWTF,co2budgetTF=co2budgetTF)
+parms <- c(parms,vegcontrolTF=vegcontrolTF,atmrespondTF=atmrespondTF,ABLTF=ABLTF,
+           soilWTF=soilWTF,co2budgetTF=co2budgetTF)
 # 2.  atmospheric conditions 
-parms <- c(parms,Psurf=Psurf,qair.presc=qair.presc,Hscale=Hscale,hmin=hmin,Beta=Beta,gamma=gamma,qabove=qabove,W=W,Ur=Ur,zr=zr,Cabove=Cabove)
+parms <- c(parms,Psurf=Psurf,qair.presc=qair.presc,Hscale=Hscale,hmin=hmin,Beta=Beta,
+           gamma=gamma,qabove=qabove,W=W,Ur=Ur,zr=zr,Cabove=Cabove)
 # 3.  land surface characteristics
-parms <- c(parms,gvmax=gvmax,albedo=albedo,albedo.c=albedo.c,z0=z0,epsilon.s=epsilon.s,LAI=LAI,Kb=Kb,Hveg=Hveg,rho.veg=rho.veg,Cp.veg=Cp.veg,Cs=Cs)
+parms <- c(parms,gvmax=gvmax,albedo=albedo,albedo.c=albedo.c,z0=z0,epsilon.s=epsilon.s,
+           LAI=LAI,Kb=Kb,Hveg=Hveg,rho.veg=rho.veg,Cp.veg=Cp.veg,Cs=Cs,Resp25=Resp25,Q10=Q10)
 # 4.  soil characteristics
-parms <- c(parms,Wsat=Wsat,Wfc=Wfc,Wwilt=Wwilt,aa=aa,bb=bb,pp=pp,rTsoil.sat=rTsoil.sat,C1sat=C1sat,C2ref=C2ref,Lambda=Lambda,Tsoil2=Tsoil2,Wsoil2=Wsoil2,d1=d1)
+parms <- c(parms,Wsat=Wsat,Wfc=Wfc,Wwilt=Wwilt,aa=aa,bb=bb,pp=pp,rTsoil.sat=rTsoil.sat,
+           C1sat=C1sat,C2ref=C2ref,Lambda=Lambda,Tsoil2=Tsoil2,Wsoil2=Wsoil2,d1=d1)
 
 ########################################################
 # define LAIM model function (what happens each time step)
@@ -357,9 +363,9 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
     LE <- (Lv*rho.surf/(raero+rveg))*(qstar-qair) #[W/m2]
     if(LE<0) LE <- 0
     
-    # !!! determine RESPIRATION!!!
-    Resp <- 0
-      
+    # determine respirational flux of CO2 to atmosphere
+    Resp <- Resp25*(Q10^((T-298.15)/10))  # respiration based on Q10 formulation
+          
     # determine ground heat flux 
     # use two-layer (force-restore) soil model to calculate ground heat flux and soil moisture
     G <- Lambda * (T - Tsoil1)
