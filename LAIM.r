@@ -589,8 +589,8 @@ if (vegcontrolTF&atmrespondTF&co2budgetTF) {
   dev.new()
   plot(result[,"time"]/3600,result[,"CO2"],type="l",xlab="Time [hour]",ylab="CO2 [ppm]",
        cex.axis=1.3,cex.lab=1.3,lwd=2,main=xmain)
-  par(new=T)
-  ylims <- range(result[,c("CO2flux.ent","CO2flux.veg")],na.rm=T)
+  par(new=TRUE)
+  ylims <- range(result[,c("CO2flux.ent","CO2flux.veg")],na.rm=TRUE)
   plot(result[,"time"]/3600,result[,"CO2flux.veg"],type="l",axes=F,xlab="",ylab="",col="darkgray",ylim=ylims,lty=1,lwd=2)
   lines(result[,"time"]/3600,result[,"CO2flux.ent"],col="darkgray",lty=3,lwd=2)
   abline(h=0,lty=1,lwd=0.5,col="darkgray")
