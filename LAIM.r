@@ -204,7 +204,7 @@ f<-function(T,Ta,SWdn,LWdn,albedo,epsilon.s,Tsoil1,Ur,zr,z0,gvmax=gvmax,CO2=Cair
   # --------------Physical constants--------#
   LWup <- epsilon.s*sigma*T^4
   SWup <- albedo*SWdn
-  Rnet <- SWdn-SWup+LWdn-LWup
+  Rn <- SWdn-SWup+LWdn-LWup
   
   # determine sensible heat flux
   rho.surf <- Psurf*100/(Rd*T)   # surface air density [kg/m3]
@@ -244,7 +244,7 @@ f<-function(T,Ta,SWdn,LWdn,albedo,epsilon.s,Tsoil1,Ur,zr,z0,gvmax=gvmax,CO2=Cair
   G <- Lambda * (T - Tsoil1)
   
   # this should =0 when T is at equilibrium value
-  return(Rnet-H-LE-G)
+  return(Rn-H-LE-G)
 } # f<-function(T,Ta,SWdn,LWdn,albedo,epsilon.s){
 
 xinterv <- Ta.c[1]+273.15+c(-50,50)  # interval over which to search for equil temperature
@@ -308,7 +308,7 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
   SWdn.t <- approx(x=as.numeric(names(SWdn_DAY))*3600,y=SWdn_DAY,xout=time%%(24*3600))$y  # downward shortwave radiation [W/m2]
   SWup <- albedo*SWdn.t
   # determine net radiation
-  Rnet <- SWdn.t-SWup+LWdn.t-LWup
+  Rn <- SWdn.t-SWup+LWdn.t-LWup
     
   countT <- 0; iterateT <- TRUE
   while (iterateT) {   #iterate until convergence
@@ -370,7 +370,7 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
     # use two-layer (force-restore) soil model to calculate ground heat flux and soil moisture
     G <- Lambda * (T - Tsoil1)
       
-    Storage <- Rnet - LE - H - G
+    Storage <- Rn - LE - H - G
     # update temperature 
     DT <- (Storage/Cs)*dt
     T <- T+DT
@@ -465,7 +465,7 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
   DCO2 <- dC.dt 
     
   #variables that aren't integrated with time and aren't returned as derivatives
-  vars2<-c(SWdn=SWdn.t,LWdn=LWdn.t,Rnet=Rnet,LWup=as.numeric(LWup),H=as.numeric(H),LE=as.numeric(LE),G=G,
+  vars2<-c(SWdn=SWdn.t,LWdn=LWdn.t,Rn=Rn,LWup=as.numeric(LWup),H=as.numeric(H),LE=as.numeric(LE),G=G,
            qstar=as.numeric(qstar),An=as.numeric(An),rveg=as.numeric(rveg),raero=raero,beta.W=as.numeric(beta.W),
            CO2flux.veg=as.numeric(CO2flux.veg),CO2flux.ent=as.numeric(CO2flux.ent),CO2flux.tot=as.numeric(CO2flux.tot),
            dh.dt=as.numeric(dh.dt),E=as.numeric(E),Fhq=as.numeric(Fhq),deltaq=as.numeric(deltaq))
@@ -554,10 +554,10 @@ dev.copy(png,"T_q_r.png");dev.off();print("T_q_r.png written out")
 
 # plot with energy fluxes 
 dev.new()
-matplot(result[,"time"]/3600,result[,c("Rnet","LWup","H","LE","G")],type="l",lty=c(1,2,1,1,1),
+matplot(result[,"time"]/3600,result[,c("Rn","LWup","H","LE","G")],type="l",lty=c(1,2,1,1,1),
         cex.axis=1.5,cex.lab=1.5,col=c("black","black","orange","blue","darkgreen"),lwd=c(3,2,2,2,2),xlab="Time [hr]",ylab="")
 mtext(text=expression(paste("Energy Fluxes [W ",m^-2,"]",sep="")),line=2.3,cex=1.4,side=2)
-legend(x="topright",c("Rnet","LWup","H","LE","G"),col=c("black","black","orange","blue","darkgreen"),lwd=c(3,2,2,2,2),lty=c(1,2,1,1,1))
+legend(x="topright",c("Rn","LWup","H","LE","G"),col=c("black","black","orange","blue","darkgreen"),lwd=c(3,2,2,2,2),lty=c(1,2,1,1,1))
 title(main=xmain)
 dev.copy(png,"Energyfluxes.png");dev.off();print("Energyflux.png written out")
 
