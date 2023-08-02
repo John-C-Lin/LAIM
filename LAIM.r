@@ -178,13 +178,13 @@ Ta.c_DAY <- Ta.c
 RH <- 0.9
 e <- RH*satvap(mean(Ta.c))/100  #vapor pressure [hPa]
 Psurf <- 1000     #surface pressure [hPa] 
-qair.presc <- (Rd/Rv)*e/Psurf   #prescribed specific humidity [g/g]
+qa.presc <- (Rd/Rv)*e/Psurf   #prescribed specific humidity [g/g]
 Hscale <- 8000    # scale height of atmosphere--i.e., height at which Psurf decays to (1/e) [m]
 hmin <- 200       # minimum height of atmospheric boundary layer [m]
-thetavM0<-(Ta.c[1]+273.15)*(1+0.61*qair.presc) # initial virtual potential temperature [K]; Eq. 1.5.1b of Stull [1988]
+thetavM0<-(Ta.c[1]+273.15)*(1+0.61*qa.presc) # initial virtual potential temperature [K]; Eq. 1.5.1b of Stull [1988]
 Beta <- 0.2       # closure hypothesis:  fraction of surface virtual potential temperature flux that determines entrainment heat flux
 gamma <- 5/1000   # slope of thetav above growing ABL [K/m]
-qabove <- qair.presc/5  # specific humidity of air above ABL [g/g]
+qabove <- qa.presc/5  # specific humidity of air above ABL [g/g]
 W <- 0            # subsidence rate [m/s]
 Ur <- 1           # reference windspeed [m/s] at reference height zr
 zr <- 50          # reference height [m] where Ur applies
@@ -214,9 +214,9 @@ f<-function(T,Ta,SWdn,LWdn,albedo,epsilon.s,Tsoil1,Ur,zr,z0,gvmax=gvmax,CO2=Cair
   # determine latent heat flux
   Lv <- 1000*latentheat(T-273.15)  # latent heat of vaporization [J/kg]
   esat <- satvap(T-273.15)/100 # saturation specific humidity [hPa]
-  e <- qair.presc*Psurf/(Rd/Rv)      # vapor pressure [hPa]
+  e <- qa.presc*Psurf/(Rd/Rv)      # vapor pressure [hPa]
   VPD <- 100*(esat-e)          # vapor pressure deficit [Pa]
-  qstar <- (Rd/Rv)*esat/Psurf  # saturation specific humidity [g/g]
+  qsat <- (Rd/Rv)*esat/Psurf  # saturation specific humidity [g/g]
   if (vegcontrolTF) {
     # Ball-Berry + Farquhar coupled stomatal conductance & photosynthesis model for vegetation resistance [s/m]
     hs <- e/esat  # fractional humidity (=1/RH) at leaf surface [.]
@@ -237,7 +237,7 @@ f<-function(T,Ta,SWdn,LWdn,albedo,epsilon.s,Tsoil1,Ur,zr,z0,gvmax=gvmax,CO2=Cair
   An <- An*scale.canopy
   gveg <- (1/rveg)*scale.canopy
   rveg <- 1/gveg
-  LE <- (Lv*rho.surf/(raero + rveg))*(qstar - qair.presc) #[W/m2]
+  LE <- (Lv*rho.surf/(raero + rveg))*(qsat - qa.presc) #[W/m2]
   if(LE<0) LE <- 0
   
   # determine ground heat flux from two-layer (force-restore) soil model to calculate ground heat flux and soil moisture
@@ -262,12 +262,12 @@ print(paste("Tinit [oC]:",signif(Tinit-273.15,5),";   Rn-H-LE-G =",signif(tmp,4)
 #############################################################################################################
 # initialize state variables
 thetaM <- Ta.c[1]+273.15
-qair <- qair.presc   # initialize with prescribed specific humidity [g/g]
-thetavM <- thetaM*(1+0.61*qair)   # virtual potential temperature [K];  Eq. 1.5.1b of Stull [1988]
+qa <- qa.presc   # initialize with prescribed specific humidity [g/g]
+thetavM <- thetaM*(1+0.61*qa)   # virtual potential temperature [K];  Eq. 1.5.1b of Stull [1988]
 
-yini <- c(T=Tinit, Ta=Ta.c[1]+273.15, qair=qair, thetavM=thetavM,
+yini <- c(T=Tinit, Ta=Ta.c[1]+273.15, qa=qa, thetavM=thetavM,
           Tsoil1=Tsoil1, Wsoil1=Wsoil1, h=hmin, CO2=Cair) 
-names(yini) <- c("T","Ta","qair","thetavM","Tsoil1","Wsoil1","h","CO2")
+names(yini) <- c("T","Ta","qa","thetavM","Tsoil1","Wsoil1","h","CO2")
 
 ########################################################
 # initialize parameters
@@ -277,7 +277,7 @@ parms <- c(dt=dt,DTtol=DTtol,countTmax=countTmax)
 parms <- c(parms,vegcontrolTF=vegcontrolTF,atmrespondTF=atmrespondTF,ABLTF=ABLTF,
            soilWTF=soilWTF,co2budgetTF=co2budgetTF)
 # 2.  atmospheric conditions 
-parms <- c(parms,Psurf=Psurf,qair.presc=qair.presc,Hscale=Hscale,hmin=hmin,Beta=Beta,
+parms <- c(parms,Psurf=Psurf,qa.presc=qa.presc,Hscale=Hscale,hmin=hmin,Beta=Beta,
            gamma=gamma,qabove=qabove,W=W,Ur=Ur,zr=zr,Cabove=Cabove)
 # 3.  land surface characteristics
 parms <- c(parms,gvmax=gvmax,albedo=albedo,albedo.c=albedo.c,z0=z0,epsilon.s=epsilon.s,
@@ -317,7 +317,7 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
       
     if (!atmrespondTF) {
       Ta <- approx(x=as.numeric(names(Ta.c_DAY))*3600,y=Ta.c_DAY,xout=time%%(24*3600))$y+273.15  #use prescribed value
-      qair <- qair.presc
+      qa <- qa.presc
     } # if(atmrespondTF){
     
     # determine sensible heat flux
@@ -329,9 +329,9 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
     beta.W <- 1   # water stress parameter (dependent on soil moisture)
     Lv <- 1000*latentheat(T-273.15)  # latent heat of vaporization [J/kg]
     esat <- satvap(T-273.15)/100 # saturation specific humidity [hPa]
-    e <- qair*Psurf/(Rd/Rv)        # vapor pressure [hPa]
+    e <- qa*Psurf/(Rd/Rv)        # vapor pressure [hPa]
     VPD <- 100*(esat-e)            # vapor pressure deficit [Pa]
-    qstar <- (Rd/Rv)*esat/Psurf    # saturation specific humidity [g/g]
+    qsat <- (Rd/Rv)*esat/Psurf    # saturation specific humidity [g/g]
     if (vegcontrolTF) {
       if (soilWTF) {
         # Eq. (12.56) of Bonan (2019)
@@ -360,7 +360,7 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
     An <- An*scale.canopy
     gv <- (1/rveg)*scale.canopy
     rveg <- 1/gv
-    LE <- (Lv*rho.surf/(raero+rveg))*(qstar-qair) #[W/m2]
+    LE <- (Lv*rho.surf/(raero+rveg))*(qsat-qa) #[W/m2]
     if(LE<0) LE <- 0
     
     # determine respirational flux of CO2 to atmosphere
@@ -420,7 +420,7 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
     rhobar <- rho.surf*(1-exp(-h/Hscale))*(Hscale/h)  # determine ABL-averaged air density [kg/m3]
     
     # calculate entrainment flux of humidity
-    deltaq <- (qabove - qair)
+    deltaq <- (qabove - qa)
     Fhq <- 0
     if(dh.dt>=0)Fhq <- -1*rhobar*deltaq*(dh.dt-W)*1000  # entrainment flux of humidity [g/m2/s] NOTE:  assume CONSTANT air density!
     dq.dt <- (E - Fhq)/(rhobar*1000*h) # change of humidity in ABL [1/s]
@@ -456,8 +456,8 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
   
   # derivatives of variables--need to be returned as part of call to 'ode'
   DT <- DT
-  DTa <- dthetavM.dt/(1+0.61*qair)
-  Dqair <- dq.dt
+  DTa <- dthetavM.dt/(1+0.61*qa)
+  Dqa <- dq.dt
   DthetavM <- dthetavM.dt
   DTsoil1 <- dTsoil1.dt
   DWsoil1 <- dWsoil1.dt
@@ -466,11 +466,11 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
     
   #variables that aren't integrated with time and aren't returned as derivatives
   vars2<-c(SWdn=SWdn.t,LWdn=LWdn.t,Rn=Rn,LWup=as.numeric(LWup),H=as.numeric(H),LE=as.numeric(LE),G=G,
-           qstar=as.numeric(qstar),An=as.numeric(An),rveg=as.numeric(rveg),raero=raero,beta.W=as.numeric(beta.W),
+           qsat=as.numeric(qsat),An=as.numeric(An),rveg=as.numeric(rveg),raero=raero,beta.W=as.numeric(beta.W),
            CO2flux.veg=as.numeric(CO2flux.veg),CO2flux.ent=as.numeric(CO2flux.ent),CO2flux.tot=as.numeric(CO2flux.tot),
            dh.dt=as.numeric(dh.dt),E=as.numeric(E),Fhq=as.numeric(Fhq),deltaq=as.numeric(deltaq))
  
-  return(list(c(DT,DTa,Dqair,DthetavM,DTsoil1,DWsoil1,Dh,DCO2),vars2))
+  return(list(c(DT,DTa,Dqa,DthetavM,DTsoil1,DWsoil1,Dh,DCO2),vars2))
   })
 } # LAIM <-function(time,state,parms,SWdn_TIME,Ta_TIME){
 
@@ -487,17 +487,17 @@ if(atmrespondTF&ABLTF&t.day>1){
     # multiple calls to "ode", each time by 1 day, to allow for entrainment of residual layer
     if(t.dd>1){
       ilast <- nrow(result.tmp)
-      #  find qair in ABL just before the ABL collapses, and use it as the humidity in residual layer that would be entrained into ABL following day
-      qair.resid <- result.tmp[which(result.tmp$h==max(result.tmp$h)),"qair"]
-      print(paste("specific humidity of residual layer [g/g]:",signif(qair.resid,5)))
-      parms["qabove"] <- qair.resid   # assign residual layer humidity as humdity above ABL
+      #  find qa in ABL just before the ABL collapses, and use it as the humidity in residual layer that would be entrained into ABL following day
+      qa.resid <- result.tmp[which(result.tmp$h==max(result.tmp$h)),"qa"]
+      print(paste("specific humidity of residual layer [g/g]:",signif(qa.resid,5)))
+      parms["qabove"] <- qa.resid   # assign residual layer humidity as humdity above ABL
       #  find [CO2] in ABL just before the ABL collapses, and use it as the [CO2] in residual layer that would be entrained into ABL following day
       Cair.resid <- result.tmp[which(result.tmp$h==max(result.tmp$h)),"CO2"]
       print(paste("CO2 of residual layer [ppm]:",signif(Cair.resid,5)))
       parms["Cabove"] <- Cair.resid   # assign residual layer [CO2] as [CO2] above ABL
-      yini <- c(T=result.tmp$T[ilast], Ta=result.tmp$Ta[ilast], qair=result.tmp$qair[ilast], thetavM=result.tmp$thetavM[ilast],
+      yini <- c(T=result.tmp$T[ilast], Ta=result.tmp$Ta[ilast], qa=result.tmp$qa[ilast], thetavM=result.tmp$thetavM[ilast],
                 Tsoil1=result.tmp$Tsoil1[ilast], Wsoil1=result.tmp$Wsoil1[ilast], h=result.tmp$h[ilast], CO2=result.tmp$CO2[ilast])
-      names(yini) <- c("T","Ta","qair","thetavM","Tsoil1","Wsoil1","h","CO2")
+      names(yini) <- c("T","Ta","qa","thetavM","Tsoil1","Wsoil1","h","CO2")
     } # if(t.dd>1){
     result.tmp <- ode(yini, times.sub, LAIM, parms, SWdn_DAY=SWdn_DAY, LWdn_DAY=LWdn_DAY,Ta.c_DAY=Ta.c_DAY, method = "lsoda")
     result.tmp <- data.frame(result.tmp)
@@ -522,9 +522,9 @@ xmain <- paste(xmain,"  atmrespondTF=",atmrespondTF)
 xmain <- paste(xmain,"\nABLTF=",ABLTF)
 xmain <- paste(xmain,"  soilWTF=",soilWTF)
 xmain <- paste(xmain,"\ndt=",dt,"[s]")
-# regenerate VPD from qstar and qair 
-e <- result[,"qair"]*Psurf/(Rd/Rv)      # vapor pressure [hPa]
-esat <- result[,"qstar"]*Psurf*(Rv/Rd)  # saturation vapor pressure [hPa]
+# regenerate VPD from qsat and qa 
+e <- result[,"qa"]*Psurf/(Rd/Rv)      # vapor pressure [hPa]
+esat <- result[,"qsat"]*Psurf*(Rv/Rd)  # saturation vapor pressure [hPa]
 VPD <- 100*(esat-e)                     # vapor pressure deficit [Pa]
 
 # generate 4 different plots in one window, with 2*2 configuration
@@ -539,11 +539,11 @@ legend(x="topright",c("Ts","Ta","Tsoil"),lwd=c(3,2,2),lty=c(1,3,1),col=c("black"
 plot(result[,"time"]/3600,VPD,type="l",xlab="Time [hour]",ylab="VPD [Pa]",lwd=2,
      cex.axis=1.3,cex.lab=1.3,main=xmain)
 
-ylims <- range(result[,c("qstar","qair")]*1000)
-plot(result[,"time"]/3600,result[,"qstar"]*1000,type="l",xlab="Time [hour]",ylab="Specific humidity [g/kg]",
+ylims <- range(result[,c("qsat","qa")]*1000)
+plot(result[,"time"]/3600,result[,"qsat"]*1000,type="l",xlab="Time [hour]",ylab="Specific humidity [g/kg]",
      cex.axis=1.3,cex.lab=1.3,lwd=3,ylim=ylims,main=xmain)
-lines(result[,"time"]/3600,result[,"qair"]*1000,lty=3,lwd=1.5)
-legend(x="topright",c("qstar","qair"),lwd=c(3,2),lty=c(1,3))
+lines(result[,"time"]/3600,result[,"qa"]*1000,lty=3,lwd=1.5)
+legend(x="topright",c("qsat","qa"),lwd=c(3,2),lty=c(1,3))
 
 ylims <- range(result[,c("raero","rveg")])
 plot(result[,"time"]/3600,result[,"raero"],type="l",xlab="Time [hour]",ylab="Resistances [s/m]",
