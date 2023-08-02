@@ -534,7 +534,7 @@ plot(result[,"time"]/3600,result[,"T"]-273.15,type="l",xlab="Time [hour]",ylab="
      cex.axis=1.3,cex.lab=1.3,lwd=3,ylim=ylims,main=xmain)
 lines(result[,"time"]/3600,result[,"Ta"]-273.15,lty=3,lwd=1.5)
 lines(result[,"time"]/3600,result[,"Tsoil1"]-273.15,lty=1,lwd=2,col="darkgray")
-legend(x="topright",c("Tsurf","Tair","Tsoil"),lwd=c(3,2,2),lty=c(1,3,1),col=c("black","black","darkgray"))
+legend(x="topright",c("Ts","Ta","Tsoil"),lwd=c(3,2,2),lty=c(1,3,1),col=c("black","black","darkgray"))
 
 plot(result[,"time"]/3600,VPD,type="l",xlab="Time [hour]",ylab="VPD [Pa]",lwd=2,
      cex.axis=1.3,cex.lab=1.3,main=xmain)
