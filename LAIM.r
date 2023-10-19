@@ -7,7 +7,7 @@ require("deSolve")   #load deSolve package to access function "ode"
 # Flags to Turn On/Off Processes 
 vegcontrolTF <- TRUE    # vegetation control?
 atmrespondTF <- TRUE    # does atmosphere respond to surface fluxes?
-ABLTF<- TRUE            # does ABL growth or decay, according to surface heat fluxes?
+ABLTF<- TRUE            # does ABL grow or decay, according to surface heat fluxes?
 soilWTF <- TRUE         # turn on soil moisture feedbacks?
 co2budgetTF <- TRUE     # track atmospheric CO2, based on surface and entrainment fluxes? 
 if (!vegcontrolTF & co2budgetTF) stop ("vegcontrolTF needs to be TRUE to track CO2")
