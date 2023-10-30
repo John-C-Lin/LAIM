@@ -7,6 +7,7 @@ require("deSolve")   #load deSolve package to access function "ode"
 # Flags to Turn On/Off Processes 
 vegcontrolTF <- TRUE    # vegetation control?
 atmrespondTF <- TRUE    # does atmosphere respond to surface fluxes?
+LWdnTF <- TRUE          # does LWdn respond dynamically?  
 ABLTF<- TRUE            # does ABL grow or decay, according to surface heat fluxes?
 soilWTF <- TRUE         # turn on soil moisture feedbacks?
 co2budgetTF <- TRUE     # track atmospheric CO2, based on surface and entrainment fluxes? 
@@ -60,7 +61,7 @@ raero.f <- function(Ur=1,zr=50,z0=z0,d=0,rho=1){
   k <- 0.4  # von Karman constant
   
   CD <- (k^2)/(log((zr-d)/z0))^2  # aerodynamic transfer coefficient
-  raero <- 1/(CD*Ur)                 # aerodynamic resistance [s/m]
+  raero <- 1/(CD*Ur)              # aerodynamic resistance [s/m]
   return(raero)
 } #raero.f<-function(){
 #################################################
@@ -204,7 +205,13 @@ f<-function(T,Ta,SWdn,LWdn,albedo,epsilon.s,Tsoil1,Ur,zr,z0,gvmax=gvmax,CO2=Cair
   # --------------Physical constants--------#
   LWup <- epsilon.s*sigma*T^4
   SWup <- albedo*SWdn
-  Rn <- SWdn-SWup+LWdn-LWup
+  e <- qa.presc*Psurf/(Rd/Rv)  # vapor pressure [hPa]
+  if (LWdnTF) {
+    # empirical formula of downward longwave radiation based on Yang et al. (2023): https://doi.org/10.5194/acp-23-4419-2023
+    epsilon.clr <- 0.532 + 0.808*((e/Ta)^(1/3))  # clear-sky emissivity
+    LWdn <- epsilon.clr * sigma * Ta^4 
+  } # if (LWdnTF) {
+  Rn <- SWdn - SWup + LWdn - LWup
   
   # determine sensible heat flux
   rho.surf <- Psurf*100/(Rd*T)   # surface air density [kg/m3]
@@ -214,7 +221,6 @@ f<-function(T,Ta,SWdn,LWdn,albedo,epsilon.s,Tsoil1,Ur,zr,z0,gvmax=gvmax,CO2=Cair
   # determine latent heat flux
   Lv <- 1000*latentheat(T-273.15)  # latent heat of vaporization [J/kg]
   esat <- satvap(T-273.15)/100 # saturation specific humidity [hPa]
-  e <- qa.presc*Psurf/(Rd/Rv)      # vapor pressure [hPa]
   VPD <- 100*(esat-e)          # vapor pressure deficit [Pa]
   qsat <- (Rd/Rv)*esat/Psurf  # saturation specific humidity [g/g]
   if (vegcontrolTF) {
@@ -303,12 +309,19 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
   if(((time/3600)%%1)==0) print(paste("Running model: time=",time/3600,"[hr]"))
   with(as.list(c(state,parms)),{
     
-  LWup <- epsilon.s*sigma*T^4   # upward longwave radiation [W/m2]
-  LWdn.t <- approx(x=as.numeric(names(LWdn_DAY))*3600,y=LWdn_DAY,xout=time%%(24*3600))$y  # downward shortwave radiation [W/m2]
-  SWdn.t <- approx(x=as.numeric(names(SWdn_DAY))*3600,y=SWdn_DAY,xout=time%%(24*3600))$y  # downward shortwave radiation [W/m2]
-  SWup <- albedo*SWdn.t
-  # determine net radiation
-  Rn <- SWdn.t-SWup+LWdn.t-LWup
+    LWup <- epsilon.s*sigma*T^4   # upward longwave radiation [W/m2]
+    LWdn.t <- approx(x=as.numeric(names(LWdn_DAY))*3600,y=LWdn_DAY,xout=time%%(24*3600))$y  # downward shortwave radiation [W/m2]
+    if (LWdnTF) {
+      # empirical formula of downward longwave radiation based on Yang et al. (2023): https://doi.org/10.5194/acp-23-4419-2023
+      epsilon.clr <- 0.532 + 0.808*((e/Ta)^(1/3))  # clear-sky emissivity
+      LWdn.t <- epsilon.clr * sigma * Ta^4 
+      # print(paste("dynamic LWdn:[2]",signif(LWdn.t,4),signif(e,3),signif(Ta,3)))
+    } # if (LWdnTF) {
+    SWdn.t <- approx(x=as.numeric(names(SWdn_DAY))*3600,y=SWdn_DAY,xout=time%%(24*3600))$y  # downward shortwave radiation [W/m2]
+    SWup <- albedo*SWdn.t
+    # determine net radiation
+    Rn <- SWdn.t-SWup+LWdn.t-LWup
+
     
   countT <- 0; iterateT <- TRUE
   while (iterateT) {   #iterate until convergence
@@ -328,10 +341,10 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
     # determine latent heat flux
     beta.W <- 1   # water stress parameter (dependent on soil moisture)
     Lv <- 1000*latentheat(T-273.15)  # latent heat of vaporization [J/kg]
-    esat <- satvap(T-273.15)/100 # saturation specific humidity [hPa]
-    e <- qa*Psurf/(Rd/Rv)        # vapor pressure [hPa]
-    VPD <- 100*(esat-e)            # vapor pressure deficit [Pa]
-    qsat <- (Rd/Rv)*esat/Psurf    # saturation specific humidity [g/g]
+    esat <- satvap(T-273.15)/100     # saturation specific humidity [hPa]
+    e <- qa*Psurf/(Rd/Rv)            # vapor pressure [hPa]
+    VPD <- 100*(esat-e)              # vapor pressure deficit [Pa]
+    qsat <- (Rd/Rv)*esat/Psurf       # saturation specific humidity [g/g]
     if (vegcontrolTF) {
       if (soilWTF) {
         # Eq. (12.56) of Bonan (2019)
@@ -554,10 +567,10 @@ dev.copy(png,"T_q_r.png");dev.off();print("T_q_r.png written out")
 
 # plot with energy fluxes 
 dev.new()
-matplot(result[,"time"]/3600,result[,c("Rn","LWup","H","LE","G")],type="l",lty=c(1,2,1,1,1),
-        cex.axis=1.5,cex.lab=1.5,col=c("black","black","orange","blue","darkgreen"),lwd=c(3,2,2,2,2),xlab="Time [hr]",ylab="")
+matplot(result[,"time"]/3600,result[,c("Rn","LWdn","LWup","H","LE","G")],type="l",lty=c(1,3,1,1,1,1),
+        cex.axis=1.5,cex.lab=1.5,col=c("black","black","darkgray","orange","blue","darkgreen"),lwd=c(3,2,3,2,2,2),xlab="Time [hr]",ylab="")
 mtext(text=expression(paste("Energy Fluxes [W ",m^-2,"]",sep="")),line=2.3,cex=1.4,side=2)
-legend(x="topright",c("Rn","LWup","H","LE","G"),col=c("black","black","orange","blue","darkgreen"),lwd=c(3,2,2,2,2),lty=c(1,2,1,1,1))
+legend(x="topright",c("Rn","LWdn","LWup","H","LE","G"),col=c("black","black","darkgray","orange","blue","darkgreen"),lwd=c(3,2,3,2,2,2),lty=c(1,3,1,1,1,1))
 title(main=xmain)
 dev.copy(png,"Energyfluxes.png");dev.off();print("Energyflux.png written out")
 
