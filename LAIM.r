@@ -62,7 +62,7 @@ raero.f <- function(Ur=1,zr=50,z0=z0,d=0,rho=1){
   k <- 0.4  # von Karman constant
   
   CD <- (k^2)/(log((zr-d)/z0))^2  # aerodynamic transfer coefficient
-  raero <- 1/(CD*Ur)                 # aerodynamic resistance [s/m]
+  raero <- 1/(CD*Ur)              # aerodynamic resistance [s/m]
   return(raero)
 } #raero.f<-function(){
 #################################################
@@ -212,7 +212,7 @@ f<-function(T,Ta,SWdn,LWdn,albedo.cloud,albedo.surf,epsilon.s,Tsoil1,Ur,zr,z0,gv
     tmp <- (RH-RHcrit)/(1-RHcrit)
     tmp[tmp<0] <- 0
     cloud <- tmp^2
-  } else { cloud <- 0} # if(cloudTF){
+  } else { cloud <- 0 } # if(cloudTF){
   albedo <- (1-cloud)*albedo.surf + cloud*albedo.cloud
   SWup <- albedo*SWdn
   Ta.c <- Ta - 273.15
@@ -222,7 +222,8 @@ f<-function(T,Ta,SWdn,LWdn,albedo.cloud,albedo.surf,epsilon.s,Tsoil1,Ur,zr,z0,gv
   if (LWdnTF) {
     # empirical formula of downward longwave radiation based on Yang et al. (2023): https://doi.org/10.5194/acp-23-4419-2023
     epsilon.clr <- 0.532 + 0.808*((e/Ta)^(1/3))  # clear-sky emissivity
-    LWdn <- epsilon.clr * sigma * Ta^4 
+    epsilon.all <- epsilon.clr*(1-0.201*cloud^0.796) + 0.088*(cloud^1.038)*((RH*100)^0.221)  # all-sky emissivity
+    LWdn <- epsilon.all * sigma * Ta^4 
   } # if (LWdnTF) {
   Rn <- SWdn - SWup + LWdn - LWup
   
@@ -329,7 +330,7 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
       tmp <- (RH-RHcrit)/(1-RHcrit)
       tmp[tmp<0] <- 0
       cloud <- tmp^2
-    } else { cloud <- 0} # if(cloudTF){
+    } else { cloud <- 0 } # if(cloudTF){
     albedo <- (1-cloud)*albedo.surf + cloud*albedo.cloud
     SWdn.t <- approx(x=as.numeric(names(SWdn_DAY))*3600,y=SWdn_DAY,xout=time%%(24*3600))$y  # downward shortwave radiation [W/m2]
     SWup <- albedo*SWdn.t
@@ -339,8 +340,8 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
     if (LWdnTF) {
       # empirical formula of downward longwave radiation based on Yang et al. (2023): https://doi.org/10.5194/acp-23-4419-2023
       epsilon.clr <- 0.532 + 0.808*((e/Ta)^(1/3))  # clear-sky emissivity
-      LWdn.t <- epsilon.clr * sigma * Ta^4 
-      # print(paste("dynamic LWdn:[2]",signif(LWdn.t,4),signif(e,3),signif(Ta,3)))
+      epsilon.all <- epsilon.clr*(1-0.201*cloud^0.796) + 0.088*(cloud^1.038)*((RH*100)^0.221)  # all-sky emissivity
+      LWdn.t <- epsilon.all * sigma * Ta^4 
     } # if (LWdnTF) {
     
     # determine net radiation
@@ -655,4 +656,3 @@ if (cloudTF) {
          col=c("black","black","darkgray"))
   dev.copy(png,"cloud_albedo_RH.png");dev.off();print("cloud_albedo_RH.png written out")
 } #if(cloudTF){
-
