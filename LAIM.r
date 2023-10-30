@@ -300,7 +300,7 @@ parms <- c(parms,vegcontrolTF=vegcontrolTF,atmrespondTF=atmrespondTF,ABLTF=ABLTF
 parms <- c(parms,Psurf=Psurf,qa.presc=qa.presc,Hscale=Hscale,hmin=hmin,Beta=Beta,
            gamma=gamma,qabove=qabove,W=W,Ur=Ur,zr=zr,Cabove=Cabove,albedo.cloud=albedo.cloud)
 # 3.  land surface characteristics
-parms <- c(parms,gvmax=gvmax,albedo=albedo,albedo.surf=albedo.surf,z0=z0,epsilon.s=epsilon.s,
+parms <- c(parms,gvmax=gvmax,albedo.surf=albedo.surf,z0=z0,epsilon.s=epsilon.s,
            LAI=LAI,Kb=Kb,Hveg=Hveg,rho.veg=rho.veg,Cp.veg=Cp.veg,Cs=Cs,Resp25=Resp25,Q10=Q10)
 # 4.  soil characteristics
 parms <- c(parms,Wsat=Wsat,Wfc=Wfc,Wwilt=Wwilt,aa=aa,bb=bb,pp=pp,rTsoil.sat=rTsoil.sat,
