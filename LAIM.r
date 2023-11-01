@@ -212,6 +212,7 @@ f<-function(T,Ta,SWdn,LWdn,albedo.cloud,albedo.surf,epsilon.s,Tsoil1,Ur,zr,z0,gv
     tmp <- (RH-RHcrit)/(1-RHcrit)
     tmp[tmp<0] <- 0
     cloud <- tmp^2
+    if(cloud > 1.0)cloud <- 1.0
   } else { cloud <- 0 } # if(cloudTF){
   albedo <- (1-cloud)*albedo.surf + cloud*albedo.cloud
   SWup <- albedo*SWdn
@@ -330,6 +331,7 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
       tmp <- (RH-RHcrit)/(1-RHcrit)
       tmp[tmp<0] <- 0
       cloud <- tmp^2
+      if(cloud > 1.0)cloud <- 1.0
     } else { cloud <- 0 } # if(cloudTF){
     albedo <- (1-cloud)*albedo.surf + cloud*albedo.cloud
     SWdn.t <- approx(x=as.numeric(names(SWdn_DAY))*3600,y=SWdn_DAY,xout=time%%(24*3600))$y  # downward shortwave radiation [W/m2]
