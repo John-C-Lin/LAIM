@@ -191,13 +191,23 @@ W <- 0            # subsidence rate [m/s]
 Ur <- 1           # reference windspeed [m/s] at reference height zr
 zr <- 50          # reference height [m] where Ur applies
 Cair <- 400       # atmospheric CO2 concentration [umole/mole, or ppm]; this is also the initial CO2 value within ABL if co2budgetTF = TRUE
-Cabove <- Cair    # CO2 concentration [ppm] above ABL
+Cfree <- 400      # CO2 concentration [ppm] in free troposphere (not modified by values in ABL)
+Cabove <- Cfree   # CO2 concentration [ppm] above ABL (later modified by value in residual layer)
 albedo.cloud <- 0.5 # albedo of cloud
+
+# parameters determining CO2 greenhouse effect
+CO2.SENSITIVITY <- 3.7  # CO2 doubling sensitivity [W/m2 per doubling of CO2]  
+CO2.baseline <- 280     # baseline to determine doubling (pre-industrial CO2 concentration [ppm])
 #################################################
 
 
+# ave CO2 in atmospheric column, using scale height as weighting (i.e., density follows exponential decay)
+CO2.colave <- Cair + (Cfree - Cair)*exp(-hmin/Hscale)           
+GHG.FORCE <- CO2.SENSITIVITY*log(CO2.colave/CO2.baseline)/log(2) # GHG forcing--from CO2 elevated above CO2base.ppm [W/m2]
+
 # initialize T with equilibrium value (determined through "uniroot")
-f<-function(T,Ta,SWdn,LWdn,albedo.cloud,albedo.surf,epsilon.s,Tsoil1,Ur,zr,z0,gvmax=gvmax,RH=RH,CO2=Cair,Psurf=1000,Hscale=8000){
+f <- function(T, Ta, SWdn, LWdn, albedo.cloud, albedo.surf, epsilon.s, Tsoil1, Ur,
+              zr, z0, gvmax=gvmax, RH=RH, CO2=Cair, Psurf=1000, Hscale=8000, GHG.FORCE=GHG.FORCE){  
   # --------------Physical constants--------#
   Cp <- 1005.7; Cv <- 719 # heat capacities @ constant pressure & volume [J/kg/K] (Appendix 2 of Emanuel [1994])
   g <- 9.80665 # standard surface gravity [m/s2]
@@ -218,13 +228,13 @@ f<-function(T,Ta,SWdn,LWdn,albedo.cloud,albedo.surf,epsilon.s,Tsoil1,Ur,zr,z0,gv
   SWup <- albedo*SWdn
   Ta.c <- Ta - 273.15
   e <- RH*satvap(mean(Ta.c))/100  #vapor pressure [hPa]
-  # e <- qa.presc*Psurf/(Rd/Rv)  # vapor pressure [hPa]
   LWup <- epsilon.s*sigma*T^4
   if (LWdnTF) {
     # empirical formula of downward longwave radiation based on Yang et al. (2023): https://doi.org/10.5194/acp-23-4419-2023
     epsilon.clr <- 0.532 + 0.808*((e/Ta)^(1/3))  # clear-sky emissivity
     epsilon.all <- epsilon.clr*(1-0.201*cloud^0.796) + 0.088*(cloud^1.038)*((RH*100)^0.221)  # all-sky emissivity
     LWdn <- epsilon.all * sigma * Ta^4 
+    LWdn <- LWdn + GHG.FORCE  # add GHG forcing
   } # if (LWdnTF) {
   Rn <- SWdn - SWup + LWdn - LWup
   
@@ -265,18 +275,16 @@ f<-function(T,Ta,SWdn,LWdn,albedo.cloud,albedo.surf,epsilon.s,Tsoil1,Ur,zr,z0,gv
   G <- Lambda * (T - Tsoil1)
   
   # this should =0 when T is at equilibrium value
-  return(Rn-H-LE-G)
+  return(Rn - H - LE - G)
 } # f<-function(T,Ta,SWdn,LWdn,albedo,epsilon.s){
 
 xinterv <- Ta.c[1]+273.15+c(-50,50)  # interval over which to search for equil temperature
 # use initial radiation, temps to solve for initial equil. temperature
 Tinit <- uniroot(f,interval=xinterv,Ta=Ta.c[1]+273.15,SWdn=SWdn[1],LWdn=LWdn[1],Tsoil1=Tsoil1,albedo.cloud=albedo.cloud,
-                 albedo.surf=albedo.surf,epsilon.s=epsilon.s,Ur=Ur,zr=zr,z0=z0,gvmax=gvmax,RH=RH,Psurf=Psurf,Hscale=Hscale)$root
+                 albedo.surf=albedo.surf,epsilon.s=epsilon.s,Ur=Ur,zr=zr,z0=z0,gvmax=gvmax,RH=RH,Psurf=Psurf,Hscale=Hscale,GHG.FORCE=GHG.FORCE)$root
 tmp <- f(T=Tinit,Ta=Ta.c[1]+273.15,SWdn=SWdn[1],LWdn=LWdn[1],Tsoil1=Tsoil1,albedo.cloud=albedo.cloud,
-         albedo.surf=albedo.surf,epsilon.s=epsilon.s,Ur=Ur,zr=zr,z0=z0,gvmax=gvmax,RH=RH,Psurf=Psurf,Hscale=Hscale)
-print(paste("Tinit [oC]:",signif(Tinit-273.15,5),";   Rn-H-LE-G =",signif(tmp,4)))
-# Impose perturbation
-# Tinit <- Tinit+10
+         albedo.surf=albedo.surf,epsilon.s=epsilon.s,Ur=Ur,zr=zr,z0=z0,gvmax=gvmax,RH=RH,Psurf=Psurf,Hscale=Hscale,GHG.FORCE=GHG.FORCE)
+print(paste("Tinit [oC]:",signif(Tinit-273.15,5),";   (Rn-H-LE-G) =",signif(tmp,4),"[W/m2]"))
 
 #############################################################################################################
 #--------------------------------- ODE ODE ODE ODE ODE ODE ODE ODE ODE ODE ---------------------------------#
@@ -299,7 +307,7 @@ parms <- c(parms,vegcontrolTF=vegcontrolTF,atmrespondTF=atmrespondTF,ABLTF=ABLTF
            soilWTF=soilWTF,co2budgetTF=co2budgetTF)
 # 2.  atmospheric conditions 
 parms <- c(parms,Psurf=Psurf,qa.presc=qa.presc,Hscale=Hscale,hmin=hmin,Beta=Beta,
-           gamma=gamma,qabove=qabove,W=W,Ur=Ur,zr=zr,Cabove=Cabove,albedo.cloud=albedo.cloud)
+           gamma=gamma,qabove=qabove,W=W,Ur=Ur,zr=zr,Cabove=Cabove,Cfree=Cfree,albedo.cloud=albedo.cloud)
 # 3.  land surface characteristics
 parms <- c(parms,gvmax=gvmax,albedo.surf=albedo.surf,z0=z0,epsilon.s=epsilon.s,
            LAI=LAI,Kb=Kb,Hveg=Hveg,rho.veg=rho.veg,Cp.veg=Cp.veg,Cs=Cs,Resp25=Resp25,Q10=Q10)
@@ -336,7 +344,12 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
     albedo <- (1-cloud)*albedo.surf + cloud*albedo.cloud
     SWdn.t <- approx(x=as.numeric(names(SWdn_DAY))*3600,y=SWdn_DAY,xout=time%%(24*3600))$y  # downward shortwave radiation [W/m2]
     SWup <- albedo*SWdn.t
-    
+  
+    # ave CO2 in atmospheric column, using scale height as weighting (i.e., density follows exponential decay)
+    #     NOTE: ignore the variation in CO2 within shallow residual layer (represented by updated Cabove) 
+    CO2.colave <- CO2 + (Cfree - CO2)*exp(-h/Hscale)                 
+    GHG.FORCE <- CO2.SENSITIVITY*log(CO2.colave/CO2.baseline)/log(2) # GHG forcing--from CO2 elevated above CO2.baseline
+
     LWup <- epsilon.s*sigma*T^4   # upward longwave radiation [W/m2]
     LWdn.t <- approx(x=as.numeric(names(LWdn_DAY))*3600,y=LWdn_DAY,xout=time%%(24*3600))$y  # downward shortwave radiation [W/m2]
     if (LWdnTF) {
@@ -344,6 +357,7 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
       epsilon.clr <- 0.532 + 0.808*((e/Ta)^(1/3))  # clear-sky emissivity
       epsilon.all <- epsilon.clr*(1-0.201*cloud^0.796) + 0.088*(cloud^1.038)*((RH*100)^0.221)  # all-sky emissivity
       LWdn.t <- epsilon.all * sigma * Ta^4 
+      LWdn.t <- LWdn.t + GHG.FORCE  # add GHG forcing
     } # if (LWdnTF) {
     
     # determine net radiation
@@ -465,7 +479,7 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
     dq.dt <- (E - Fhq)/(rhobar*1000*h) # change of humidity in ABL [1/s]
     
     # update ABL-averaged thetav
-    dthetavM.dt <- (F0thetav - Fhthetav)/h  # change of thetav in ABL [K-kg/m^3/s]
+    dthetavM.dt <- (F0thetav - Fhthetav)/h   # change of thetav in ABL [K-kg/m^3/s]
     dthetavM.dt <- dthetavM.dt/rhobar        # [K-kg/m^3/s]=>[K/s]
     
     # update ABL-averaged CO2
@@ -504,7 +518,7 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
   DCO2 <- dC.dt 
     
   #variables that aren't integrated with time and aren't returned as derivatives
-  vars2<-c(SWdn=SWdn.t,LWdn=LWdn.t,Rn=Rn,LWup=as.numeric(LWup),H=as.numeric(H),LE=as.numeric(LE),G=G,RH=RH,cloud=cloud,albedo=albedo,
+  vars2<-c(SWdn=SWdn.t,LWdn=LWdn.t,GHG.FORCE=GHG.FORCE,Rn=Rn,LWup=as.numeric(LWup),H=as.numeric(H),LE=as.numeric(LE),G=G,RH=RH,cloud=cloud,albedo=albedo,
            qsat=as.numeric(qsat),An=as.numeric(An),rveg=as.numeric(rveg),raero=raero,beta.W=as.numeric(beta.W),
            CO2flux.veg=as.numeric(CO2flux.veg),CO2flux.ent=as.numeric(CO2flux.ent),CO2flux.tot=as.numeric(CO2flux.tot),
            dh.dt=as.numeric(dh.dt),E=as.numeric(E),Fhq=as.numeric(Fhq),deltaq=as.numeric(deltaq))
