@@ -134,6 +134,7 @@ if (tolower(soiltype)=="sandy loam") {
 }
 
 Lambda <- 5.9       # thermal transfer coefficient of surface layer [W/m2/K]
+tau.soil <- 24*3600 # time constant of restoring Tsoil1 to Tsoil2 & Wsoil1 to Wsoil2 [s]
 # Initialize two-layer (force-restore) soil model, from de Arellano et al. (2015)
 Tsoil2 <- 286       # T of deep soil layer [K] that is constant
 Tsoil1 <- Tsoil2    # T of top soil layer [K] that varies w/ time
@@ -435,7 +436,7 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
   
   # heat transport between surface and deep soil layer to update Tsoil1 from CLASS model
   rTsoil <- rTsoil.sat * (Wsat/Wsoil2)^(bb/(2*log(10)))
-  dTsoil1.dt <- (rTsoil*G - (2*pi/(86400))*(Tsoil1 - Tsoil2)) #Eq. (9.32) of de Arellano et al. (2015)
+  dTsoil1.dt <- (rTsoil*G - (2*pi/tau.soil)*(Tsoil1 - Tsoil2)) #Eq. (9.32) of de Arellano et al. (2015)
   
   if (soilWTF) {
     # update soil water content, based on CLASS model
@@ -444,7 +445,7 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
     C2 <- C2ref*(Wsoil2/(Wsat - Wsoil2 + Wsmall))  #Eq. (9.36) of de Arellano et al. (2015)
     Wsoil1eq <- Wsoil2 - aa*Wsat*((Wsoil2/Wsat)^pp)*(1-(Wsoil2/Wsat)^(8*pp))  #Eq. (9.37) of de Arellano et al. (2015)
     # Eq. (9.34) of de Arellano et al. (2015); NOTE:  use LE instead of LEsoil as in (9.34), and -1 multiplied by C1 that is missing in (9.34)
-    dWsoil1.dt <- ((-C1/(rho.W*d1))*(LE/Lv) - (C2/86400)*(Wsoil1 - Wsoil1eq))
+    dWsoil1.dt <- ((-C1/(rho.W*d1))*(LE/Lv) - (C2/tau.soil)*(Wsoil1 - Wsoil1eq))
     # make sure that Wsoil1 does not dip below Wwilt;  NOTE:  this does NOT conserve water (since could stll have residual E from minimum gv)
     if(Wsoil1 < Wwilt){dWsoil1.dt <- (Wwilt-Wsoil1)/dt;Wsoil1 <- Wwilt}  
     if (Wsoil1 < 0) {dWsoil1.dt <- (0-Wsoil1)/dt;Wsoil1 <- 0}
