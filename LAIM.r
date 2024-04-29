@@ -221,6 +221,7 @@ f <- function(T, Ta, SWdn, LWdn, albedo.cloud, albedo.surf, epsilon.s, Tsoil1, U
   if(cloudTF){
     # diagnose cloud fraction based on Eq. 3 of Slingo [1987]:  "The development and verification of a cloud prediction scheme for the ECMWF model"
     RHcrit <- 0.8
+    # initially use surface RH, but later will be using the RH at the ABLtop for the cloud scheme
     tmp <- (RH-RHcrit)/(1-RHcrit)
     tmp[tmp<0] <- 0
     cloud <- tmp^2
@@ -333,12 +334,18 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
   
   if(((time/3600)%%1)==0) print(paste("Running model: time=",time/3600,"[hr]"))
   with(as.list(c(state,parms)),{
-    
+   
+    # calculate RH at ABLtop and near ground surface
+    RH <- e/(satvap(Ta - 273.15)/100)
+    P.h <- Psurf*exp(-h/Hscale)
+    e.h <- qa*(Rv/Rd)*P.h # vapor pressure at ABL top [hPa]
+    T.h <- Ta - (g/Cp)*h  # temperature at ABL top [K], where (g/Cp) is the adiabatic lapse rate
+    esat.h <- satvap(T.h-273.15)/100 # saturation vapor pressure at ABL top [hPa]
+    RH.h <- e.h/esat.h    # relative humidity at ABLtop
     if(cloudTF){
       # diagnose cloud fraction based on Eq. 3 of Slingo [1987]:  "The development and verification of a cloud prediction scheme for the ECMWF model"
-      RH <- e/(satvap(Ta - 273.15)/100)
       RHcrit <- 0.8
-      tmp <- (RH-RHcrit)/(1-RHcrit)
+      tmp <- (RH.h-RHcrit)/(1-RHcrit)
       tmp[tmp<0] <- 0
       cloud <- tmp^2
       if(cloud > 1.0)cloud <- 1.0
@@ -383,7 +390,7 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
     # determine latent heat flux
     beta.W <- 1   # water stress parameter (dependent on soil moisture)
     Lv <- 1000*latentheat(T-273.15)  # latent heat of vaporization [J/kg]
-    esat <- satvap(T-273.15)/100     # saturation specific humidity [hPa]
+    esat <- satvap(T-273.15)/100     # saturation vapor pressure [hPa]
     e <- qa*Psurf/(Rd/Rv)            # vapor pressure [hPa]
     VPD <- 100*(esat-e)              # vapor pressure deficit [Pa]
     qsat <- (Rd/Rv)*esat/Psurf       # saturation specific humidity [g/g]
@@ -520,7 +527,7 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
   DCO2 <- dC.dt 
     
   #variables that aren't integrated with time and aren't returned as derivatives
-  vars2<-c(SWdn=SWdn.t,LWdn=LWdn.t,GHG.FORCE=GHG.FORCE,Rn=Rn,LWup=as.numeric(LWup),H=as.numeric(H),LE=as.numeric(LE),G=G,RH=RH,cloud=cloud,albedo=albedo,
+  vars2<-c(SWdn=SWdn.t,LWdn=LWdn.t,GHG.FORCE=GHG.FORCE,Rn=Rn,LWup=as.numeric(LWup),H=as.numeric(H),LE=as.numeric(LE),G=G,RH=RH,RH.h=RH.h,cloud=cloud,albedo=albedo,
            qsat=as.numeric(qsat),An=as.numeric(An),rveg=as.numeric(rveg),raero=raero,beta.W=as.numeric(beta.W),
            CO2flux.veg=as.numeric(CO2flux.veg),CO2flux.ent=as.numeric(CO2flux.ent),CO2flux.tot=as.numeric(CO2flux.tot),
            dh.dt=as.numeric(dh.dt),E=as.numeric(E),Fhq=as.numeric(Fhq),deltaq=as.numeric(deltaq))
@@ -669,8 +676,9 @@ if (cloudTF) {
   plot(result[,"time"]/3600,result[,"cloud"],type="l",xlab="Time [hour]",ylab="Cloud Fraction/Albedo/RH",
        cex.axis=1.3,cex.lab=1.3,lwd=3,lty=1,main=xmain,ylim=ylims)
   lines(result[,"time"]/3600,result[,"albedo"],type="l",lwd=2,lty=3)
-  lines(result[,"time"]/3600,result[,"RH"],type="l",lwd=3,lty=1,col="darkgray")
-  legend(x="topright",c("cloud fraction","albedo","RH"),lwd=c(3,2,3),lty=c(1,3,1),
-         col=c("black","black","darkgray"))
+  lines(result[,"time"]/3600,result[,"RH.h"],type="l",lwd=3,lty=1,col="darkgray")
+  lines(result[,"time"]/3600,result[,"RH"],type="l",lwd=3,lty=3,col="darkgray")
+  legend(x="topright",c("cloud fraction","albedo","RH@ABLtop","RH near surf"),lwd=c(3,2,3,3),lty=c(1,3,1,3),
+         col=c("black","black","darkgray","darkgray"))
   dev.copy(png,"cloud_albedo_RH.png");dev.off();print("cloud_albedo_RH.png written out")
 } #if(cloudTF){
