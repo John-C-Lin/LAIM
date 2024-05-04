@@ -473,7 +473,7 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
       Fhthetav <- -1*Beta*F0thetav   # closure hypothesis (Eq. 6.15 of Garratt [1992])
       # calculate ABL growth rate
       dh.dt<-(1+2*Beta)*F0thetav/(gamma*h)
-      if (F0thetav<=0.00){dh.dt <- (hmin - h)/dt} # override value:  ABL collapses
+      if (F0thetav<=0.00){dh.dt <- (hmin - h)/dt;Fhthetav <- 0} # override value:  ABL collapses
     } else {
       dh.dt <- 0
       Fhthetav <- 0
@@ -530,7 +530,7 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
   vars2<-c(SWdn=SWdn.t,LWdn=LWdn.t,GHG.FORCE=GHG.FORCE,Rn=Rn,LWup=as.numeric(LWup),H=as.numeric(H),LE=as.numeric(LE),G=G,RH=RH,RH.h=RH.h,cloud=cloud,albedo=albedo,
            qsat=as.numeric(qsat),An=as.numeric(An),rveg=as.numeric(rveg),raero=raero,beta.W=as.numeric(beta.W),
            CO2flux.veg=as.numeric(CO2flux.veg),CO2flux.ent=as.numeric(CO2flux.ent),CO2flux.tot=as.numeric(CO2flux.tot),
-           dh.dt=as.numeric(dh.dt),E=as.numeric(E),Fhq=as.numeric(Fhq),deltaq=as.numeric(deltaq))
+           dh.dt=as.numeric(dh.dt),E=as.numeric(E),Fhq=as.numeric(Fhq),deltaq=as.numeric(deltaq),Fhthetav=as.numeric(Fhthetav))
  
   return(list(c(DT,DTa,Dqa,DthetavM,DTsoil1,DWsoil1,Dh,DCO2),vars2))
   })
