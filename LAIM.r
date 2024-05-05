@@ -579,6 +579,8 @@ if(atmrespondTF&ABLTF&t.day>1){
 
 ########################################################
 # Plotting 
+colorplotsTF <- TRUE  # generate colored plots? (esp. for surface energy fluxes)
+
 # text on plot 
 xmain <- paste("atmrespondTF=",atmrespondTF)
 xmain <- paste(xmain,"  ABLTF=",ABLTF)
@@ -618,10 +620,17 @@ dev.copy(png,"T_q_r.png");dev.off();print("T_q_r.png written out")
 
 # plot with energy fluxes 
 dev.new()
-matplot(result[,"time"]/3600,result[,c("Rn","LWdn","LWup","H","LE","G")],type="l",lty=c(1,3,1,1,1,1),lwd=c(3,2,3,2,2,2),
-        cex.axis=1.5,cex.lab=1.5,col=c("black","black","darkgray","orange","blue","darkgreen"),xlab="Time [hr]",ylab="")
+if(colorplotsTF){
+  matplot(result[,"time"]/3600,result[,c("Rn","LWdn","LWup","H","LE","G")],type="l",lty=c(1,3,1,1,1,1),lwd=c(3,2,3,2,2,2),
+          cex.axis=1.5,cex.lab=1.5,col=c("black","black","darkgray","orange","blue","darkgreen"),xlab="Time [hr]",ylab="")
+  legend(x="topright",c("Rn","LWdn","LWup","H","LE","G"),col=c("black","black","darkgray","orange","blue","darkgreen"),lty=c(1,3,1,1,1,1),lwd=c(3,2,3,2,2,2))
+} else {
+  cols <- c("black","darkgray","darkgray","black","black","darkgray")
+  matplot(result[,"time"]/3600,result[,c("Rn","LWdn","LWup","H","LE","G")],type="l",lty=c(1,1,4,3,1,3),lwd=c(4,2,3,3,2,2),
+          cex.axis=1.5,cex.lab=1.5,col=cols,xlab="Time [hr]",ylab="")
+  legend(x="topright",c("Rn","LWdn","LWup","H","LE","G"),col=cols,lty=c(1,1,4,3,1,3),lwd=c(4,2,3,3,2,2),text.col=cols,cex=1.1,ncol=1,bty="o")
+} # if(colorplotsTF)
 mtext(text=expression(paste("Energy Fluxes [W ",m^-2,"]",sep="")),line=2.3,cex=1.4,side=2)
-legend(x="topright",c("Rn","LWdn","LWup","H","LE","G"),col=c("black","black","darkgray","orange","blue","darkgreen"),lwd=c(3,2,3,2,2,2),lty=c(1,3,1,1,1,1))
 title(main=xmain)
 dev.copy(png,"Energyfluxes.png");dev.off();print("Energyflux.png written out")
 
