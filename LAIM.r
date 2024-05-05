@@ -463,6 +463,7 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
   # if want atmosphere to respond
   # Based on "zero-order jump" or "slab" model of convective boundary layer, described in Pg. 151~155 of Garratt [1992]
   CO2flux.veg <- NA; CO2flux.ent <- NA; CO2flux.tot <- NA
+  Fhthetav <- 0
   if (atmrespondTF) {
     #calculate surface virtual heat flux
     Lv <- latentheat(T-273.15)  # latent heat of vaporization [J/g]
