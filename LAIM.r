@@ -528,10 +528,11 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
   DCO2 <- dC.dt 
     
   #variables that aren't integrated with time and aren't returned as derivatives
-  vars2<-c(SWdn=SWdn.t,LWdn=LWdn.t,GHG.FORCE=GHG.FORCE,Rn=Rn,LWup=as.numeric(LWup),H=as.numeric(H),LE=as.numeric(LE),G=G,RH=RH,RH.h=RH.h,cloud=cloud,albedo=albedo,
-           qsat=as.numeric(qsat),An=as.numeric(An),rveg=as.numeric(rveg),raero=raero,beta.W=as.numeric(beta.W),
-           CO2flux.veg=as.numeric(CO2flux.veg),CO2flux.ent=as.numeric(CO2flux.ent),CO2flux.tot=as.numeric(CO2flux.tot),
-           dh.dt=as.numeric(dh.dt),E=as.numeric(E),Fhq=as.numeric(Fhq),deltaq=as.numeric(deltaq),Fhthetav=as.numeric(Fhthetav))
+  vars2 <- c(SWdn=SWdn.t,LWdn=LWdn.t,GHG.FORCE=GHG.FORCE,Rn=as.numeric(Rn),LWup=as.numeric(LWup),H=as.numeric(H),LE=as.numeric(LE),G=as.numeric(G),
+             RH=as.numeric(RH),RH.h=as.numeric(RH.h),cloud=as.numeric(cloud),albedo=as.numeric(albedo),qsat=as.numeric(qsat),
+             An=as.numeric(An),rveg=as.numeric(rveg),raero=as.numeric(raero),beta.W=as.numeric(beta.W),
+             CO2flux.veg=as.numeric(CO2flux.veg),CO2flux.ent=as.numeric(CO2flux.ent),CO2flux.tot=as.numeric(CO2flux.tot),
+             dh.dt=as.numeric(dh.dt),E=as.numeric(E),Fhq=as.numeric(Fhq),deltaq=as.numeric(deltaq),Fhthetav=as.numeric(Fhthetav))
  
   return(list(c(DT,DTa,Dqa,DthetavM,DTsoil1,DWsoil1,Dh,DCO2),vars2))
   })
