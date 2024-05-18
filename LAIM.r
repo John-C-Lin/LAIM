@@ -15,6 +15,8 @@ if (!atmrespondTF & ABLTF) stop ("atmrespondTF needs to be TRUE to allow ABL to 
 if (!vegcontrolTF & co2budgetTF) stop ("vegcontrolTF needs to be TRUE to track CO2")
 if (!vegcontrolTF & soilWTF) stop ("vegcontrolTF needs to be TRUE for soil moisture feedback to work")
 LWdnTF <- TRUE          # does LWdn respond dynamically?  
+co2fluxprescTF <- FALSE # is CO2 flux (& ABL) prescribed, rather than simulated internally?
+if (!co2budgetTF & co2fluxprescTF) stop ("co2budgetTF needs to be TRUE to prescribe CO2 flux")
 #################################################
 
 #################################################
@@ -29,7 +31,7 @@ countTmax <- 1000  # max number of times to iterate T calculation
 
 #################################################
 # Load in functions
-if(vegcontrolTF){
+if(vegcontrolTF){ 
   if(!file.exists("Ball_Berry_Farquhar.r"))stop(paste("Can not find 'Ball_Berry_Farquhar.r' in working directory:",getwd()))
   source("Ball_Berry_Farquhar.r")  #load Ball-Berry + Farquhar coupled stomatal conductance & photosynthesis model  
 } # if(vegcontrolTF){
@@ -200,14 +202,19 @@ albedo.cloud <- 0.5 # albedo of cloud
 # parameters determining CO2 greenhouse effect
 CO2.SENSITIVITY <- 3.7  # CO2 doubling sensitivity [W/m2 per doubling of CO2]  
 CO2.baseline <- 280     # baseline to determine doubling (pre-industrial CO2 concentration [ppm])
-#################################################
-
-
 # ave CO2 in atmospheric column, using scale height as weighting (i.e., density follows exponential decay)
 CO2.colave <- Cair + (Cfree - Cair)*exp(-hmin/Hscale)           
 GHG.FORCE <- CO2.SENSITIVITY*log(CO2.colave/CO2.baseline)/log(2) # GHG forcing--from CO2 elevated above CO2base.ppm [W/m2]
 
-# initialize T with equilibrium value (determined through "uniroot")
+if(co2fluxprescTF){
+  print("Prescribing CO2 flux...")
+  CO2flux.veg_DAY <- SWdn_DAY
+  CO2flux.veg_DAY[1:length(CO2flux.veg_DAY)] <- 5      # prescribe daily cycle of CO2 flux [umole/m2/s]
+  saveRDS(CO2flux.veg_DAY,file="CO2flux.veg_DAY.RDS")  # save prescribed info in RDS file to be loaded within LAIM function
+} # if(co2fluxprescTF){
+
+#################################################
+# function to initialize T with equilibrium value (determined through "uniroot")
 f <- function(T, Ta, SWdn, LWdn, albedo.cloud, albedo.surf, epsilon.s, Tsoil1, Ur,
               zr, z0, gvmax=gvmax, RH=RH, CO2=Cair, Psurf=1000, Hscale=8000, GHG.FORCE=GHG.FORCE){  
   # --------------Physical constants--------#
@@ -496,6 +503,11 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
     dC.dt <- 0
     if (co2budgetTF) {
       CO2flux.veg <- (-1*An + Resp)  # surface CO2 flux [umole/m2/s]; photosynthesis is a negative flux (removal from atmosphere)
+      if(co2fluxprescTF){
+        CO2flux.veg_DAY <- readRDS("CO2flux.veg_DAY.RDS")
+        CO2flux.veg.t <- approx(x=as.numeric(names(CO2flux.veg_DAY))*3600,y=CO2flux.veg_DAY,xout=time%%(24*3600))$y  
+        CO2flux.veg <- CO2flux.veg.t
+      } # if(co2fluxprescTF){
       CO2flux.tot <- CO2flux.veg
       CO2flux.ent <- 0
       if(dh.dt>0){
