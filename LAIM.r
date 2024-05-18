@@ -6,7 +6,7 @@ require("deSolve")   #load deSolve package to access function "ode"
 #################################################
 # Flags to Turn On/Off Processes 
 atmrespondTF <- TRUE    # does atmosphere respond to surface fluxes?
-ABLTF <- TRUE           # does ABL grow or decay, according to surface heat fluxes?
+ABLTF <- TRUE           # does ABL evolve according to surface heat fluxes? 
 cloudTF <- TRUE         # does cloud cover change as function of atmospheric humidity?
 vegcontrolTF <- TRUE    # vegetation control?
 soilWTF <- TRUE         # turn on soil moisture feedbacks?
@@ -14,7 +14,7 @@ co2budgetTF <- TRUE     # track atmospheric CO2, based on surface and entrainmen
 if (!atmrespondTF & ABLTF) stop ("atmrespondTF needs to be TRUE to allow ABL to grow and decay")
 if (!vegcontrolTF & soilWTF) stop ("vegcontrolTF needs to be TRUE for soil moisture feedback to work")
 LWdnTF <- TRUE          # does LWdn respond dynamically?  
-co2fluxprescTF <- TRUE  # is CO2 flux (& ABL) prescribed, rather than simulated internally?
+co2fluxprescTF <- FALSE # is CO2 flux (& ABL) prescribed, rather than simulated internally?
 if (!vegcontrolTF & co2budgetTF & !co2fluxprescTF) stop ("vegcontrolTF needs to be TRUE to track CO2")
 if (!co2budgetTF & co2fluxprescTF) stop ("co2budgetTF needs to be TRUE to prescribe CO2 flux")
 #################################################
@@ -206,6 +206,15 @@ CO2.baseline <- 280     # baseline to determine doubling (pre-industrial CO2 con
 CO2.colave <- Cair + (Cfree - Cair)*exp(-hmin/Hscale)           
 GHG.FORCE <- CO2.SENSITIVITY*log(CO2.colave/CO2.baseline)/log(2) # GHG forcing--from CO2 elevated above CO2base.ppm [W/m2]
 
+hini <- hmin  # initial ABL depth [m]
+if(!ABLTF){
+  print("Prescribing ABL depth...")
+  ABLdepth_DAY <- SWdn_DAY
+  ABLdepth_DAY[1:length(ABLdepth_DAY)] <- 1000      # prescribe daily cycle of ABL depth [m]
+  hini <- ABLdepth_DAY[1]
+  saveRDS(ABLdepth_DAY,file="ABLdepth_DAY.RDS")  # save prescribed info in RDS file to be loaded within LAIM function
+} # if(co2fluxprescTF){
+
 if(co2fluxprescTF){
   print("Prescribing CO2 flux...")
   CO2flux.veg_DAY <- SWdn_DAY
@@ -305,7 +314,7 @@ qa <- qa.presc   # initialize with prescribed specific humidity [g/g]
 thetavM <- thetaM*(1+0.61*qa)   # virtual potential temperature [K];  Eq. 1.5.1b of Stull [1988]
 
 yini <- c(T=Tinit, Ta=Ta.c[1]+273.15, qa=qa, thetavM=thetavM,
-          Tsoil1=Tsoil1, Wsoil1=Wsoil1, h=hmin, CO2=Cair) 
+          Tsoil1=Tsoil1, Wsoil1=Wsoil1, h=hini, CO2=Cair) 
 names(yini) <- c("T","Ta","qa","thetavM","Tsoil1","Wsoil1","h","CO2")
 
 ########################################################
@@ -477,14 +486,18 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
     E <- LE/Lv   # surface moisture flux [g/m^2/s] 
     F0theta <- H/Cp  # potential heat flux [K-kg/m^2/s]
     F0thetav <- F0theta+0.073*Lv*E/Cp # virtual heat flux [K-kg/m^2/s]
+    Fhthetav <- -1*Beta*F0thetav   # closure hypothesis (Eq. 6.15 of Garratt [1992])
     if (ABLTF) {
-      Fhthetav <- -1*Beta*F0thetav   # closure hypothesis (Eq. 6.15 of Garratt [1992])
       # calculate ABL growth rate
       dh.dt<-(1+2*Beta)*F0thetav/(gamma*h)
       if (F0thetav<=0.00){dh.dt <- (hmin - h)/dt;Fhthetav <- 0} # override value:  ABL collapses
     } else {
-      dh.dt <- 0
-      Fhthetav <- 0
+      ABLdepth_DAY <- readRDS("ABLdepth_DAY.RDS")
+      h.t <- approx(x=as.numeric(names(ABLdepth_DAY))*3600,y=ABLdepth_DAY,xout=time%%(24*3600))$y  
+      h <- h.t
+      h.tnext <- approx(x=as.numeric(names(ABLdepth_DAY))*3600,y=ABLdepth_DAY,xout=(time+dt)%%(24*3600))$y  
+      dh.dt <- (h.tnext-h.t)/dt
+      if (F0thetav<=0.00|dh.dt==0){Fhthetav <- 0} # override value:  ABL collapses
     } # if(ABLTF){
     
     rhobar <- rho.surf*(1-exp(-h/Hscale))*(Hscale/h)  # determine ABL-averaged air density [kg/m3]
