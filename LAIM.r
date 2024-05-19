@@ -209,6 +209,7 @@ GHG.FORCE <- CO2.SENSITIVITY*log(CO2.colave/CO2.baseline)/log(2) # GHG forcing--
 hini <- hmin  # initial ABL depth [m]
 if(!ABLTF){
   print("Prescribing ABL depth...")
+  # ABL depth prescribed with hourly timestep
   ABLdepth_DAY <- SWdn_DAY
   ABLdepth_DAY[1:length(ABLdepth_DAY)] <- 1000      # prescribe daily cycle of ABL depth [m]
   hini <- ABLdepth_DAY[1]
@@ -217,6 +218,7 @@ if(!ABLTF){
 
 if(co2fluxprescTF){
   print("Prescribing CO2 flux...")
+  # CO2 flux prescribed with hourly timestep
   CO2flux.veg_DAY <- SWdn_DAY
   CO2flux.veg_DAY[1:length(CO2flux.veg_DAY)] <- 5      # prescribe daily cycle of CO2 flux [umole/m2/s]
   saveRDS(CO2flux.veg_DAY,file="CO2flux.veg_DAY.RDS")  # save prescribed info in RDS file to be loaded within LAIM function
@@ -323,7 +325,7 @@ names(yini) <- c("T","Ta","qa","thetavM","Tsoil1","Wsoil1","h","CO2")
 parms <- c(dt=dt,DTtol=DTtol,countTmax=countTmax)
 # 1.  flags
 parms <- c(parms,vegcontrolTF=vegcontrolTF,atmrespondTF=atmrespondTF,ABLTF=ABLTF,
-           soilWTF=soilWTF,co2budgetTF=co2budgetTF)
+           soilWTF=soilWTF,co2budgetTF=co2budgetTF,co2fluxprescTF=co2fluxprescTF)
 # 2.  atmospheric conditions 
 parms <- c(parms,Psurf=Psurf,qa.presc=qa.presc,Hscale=Hscale,hmin=hmin,Beta=Beta,
            gamma=gamma,qabove=qabove,W=W,Ur=Ur,zr=zr,Cabove=Cabove,Cfree=Cfree,albedo.cloud=albedo.cloud)
@@ -350,7 +352,7 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
   
   if(((time/3600)%%1)==0) print(paste("Running model: time=",time/3600,"[hr]"))
   with(as.list(c(state,parms)),{
-   
+    
     # calculate RH at ABLtop and near ground surface
     RH <- e/(satvap(Ta - 273.15)/100)
     P.h <- Psurf*exp(-h/Hscale)
@@ -369,12 +371,12 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
     albedo <- (1-cloud)*albedo.surf + cloud*albedo.cloud
     SWdn.t <- approx(x=as.numeric(names(SWdn_DAY))*3600,y=SWdn_DAY,xout=time%%(24*3600))$y  # downward shortwave radiation [W/m2]
     SWup <- albedo*SWdn.t
-  
+    
     # ave CO2 in atmospheric column, using scale height as weighting (i.e., density follows exponential decay)
     #     NOTE: ignore the variation in CO2 within shallow residual layer (represented by updated Cabove) 
     CO2.colave <- CO2 + (Cfree - CO2)*exp(-h/Hscale)                 
     GHG.FORCE <- CO2.SENSITIVITY*log(CO2.colave/CO2.baseline)/log(2) # GHG forcing--from CO2 elevated above CO2.baseline
-
+    
     LWup <- epsilon.s*sigma*T^4   # upward longwave radiation [W/m2]
     LWdn.t <- approx(x=as.numeric(names(LWdn_DAY))*3600,y=LWdn_DAY,xout=time%%(24*3600))$y  # downward shortwave radiation [W/m2]
     if (LWdnTF) {
@@ -388,185 +390,191 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
     # determine net radiation
     Rn <- SWdn.t-SWup+LWdn.t-LWup
     
-  countT <- 0; iterateT <- TRUE
-  while (iterateT) {   #iterate until convergence
-    countT <- countT + 1
-    if(countT > countTmax)stop("T does not converge")
+    countT <- 0; iterateT <- TRUE
+    while (iterateT) {   #iterate until convergence
+      countT <- countT + 1
+      if(countT > countTmax)stop("T does not converge")
       
-    if (!atmrespondTF) {
-      Ta <- approx(x=as.numeric(names(Ta.c_DAY))*3600,y=Ta.c_DAY,xout=time%%(24*3600))$y+273.15  #use prescribed value
-      qa <- qa.presc
+      if (!atmrespondTF) {
+        Ta <- approx(x=as.numeric(names(Ta.c_DAY))*3600,y=Ta.c_DAY,xout=time%%(24*3600))$y+273.15  #use prescribed value
+        qa <- qa.presc
+      } # if(atmrespondTF){
+      
+      # determine sensible heat flux
+      rho.surf <- Psurf*100/(Rd*T)   # surface air density [kg/m3]
+      raero <- raero.f(Ur=Ur,zr=zr,z0=z0,rho=rho.surf)
+      H <- (Cp*rho.surf/(raero))*(T-Ta)   # [W/m2]
+      
+      # determine latent heat flux
+      beta.W <- 1   # water stress parameter (dependent on soil moisture)
+      Lv <- 1000*latentheat(T-273.15)  # latent heat of vaporization [J/kg]
+      esat <- satvap(T-273.15)/100     # saturation vapor pressure [hPa]
+      e <- qa*Psurf/(Rd/Rv)            # vapor pressure [hPa]
+      VPD <- 100*(esat-e)              # vapor pressure deficit [Pa]
+      qsat <- (Rd/Rv)*esat/Psurf       # saturation specific humidity [g/g]
+      if (vegcontrolTF) {
+        if (soilWTF) {
+          # Eq. (12.56) of Bonan (2019)
+          beta.W <- (Wsoil1 - Wwilt)/(Wfc - Wwilt)
+          if (Wsoil1 >= Wfc) beta.W <- 1.0
+          if (Wsoil1 <= Wwilt) beta.W <- 0
+        } # if (soilWTF)
+        # Ball-Berry + Farquhar coupled stomatal conductance & photosynthesis model for vegetation resistance [s/m]
+        hs <- e/esat  # fractional humidity (=1/RH) at leaf surface [.]   
+        if(hs<0.7) hs <- hs + 0.3   #!!! quick adjustment that ensures leaf surface is not too dry...accounts for higher humidity within canopy  !!!#
+        cs <- CO2    # CO2 concentration at leaf surface [umole/mole]
+        BBFout <- BBF(SW=SWdn.t,Tleaf.C=T-273.15,hs=hs,beta.W=beta.W,cs=cs,Psurf=Psurf)  
+        gsv <- BBFout["gsv"]  # stomatal conductance with respect to water vapor [mole H2O/m2/s]  
+        rho.mole <- rho.surf*1000/Md # air density [kg/m3] => molar density [moles/m3]
+        gsv <- gsv/rho.mole   # [mole/m2/s] => [m/s]
+        rveg <- 1/gsv         # vegetation resistance [s/m]
+        An <- BBFout["An"]    # Net photosynthesis [umole/m2/s]
+        ci <- BBFout["ci"]    # intercellular CO2 [umole/mole]
+      } else {
+        rveg <- 1/gvmax
+        An <- NA; ci <- NA
+      } # if(vegcontrolTF){
+      
+      # scale up photosynthesis and stomatal conductance to CANOPY values using Big-Leaf Model, based on Eq. (15.5) of Bonan (2019)
+      scale.canopy<-(1-exp(-Kb*LAI))/Kb
+      An <- An*scale.canopy
+      gv <- (1/rveg)*scale.canopy
+      rveg <- 1/gv
+      LE <- (Lv*rho.surf/(raero+rveg))*(qsat-qa) #[W/m2]
+      if(LE<0) LE <- 0
+      
+      # determine respirational flux of CO2 to atmosphere
+      Resp <- Resp25*(Q10^((T-298.15)/10))  # respiration based on Q10 formulation
+      
+      # determine ground heat flux 
+      # use two-layer (force-restore) soil model to calculate ground heat flux and soil moisture
+      G <- Lambda * (T - Tsoil1)
+      
+      Storage <- Rn - LE - H - G
+      # update temperature 
+      DT <- (Storage/Cs)*dt
+      T <- T+DT
+      #print(paste("iterating so that T converges:",countT,paste("T =",signif(T,5)),signif(DT,4)))
+      iterateT <- abs(DT)>DTtol   # continue iterating until T converges
+    } # while (iterateT) {   #iterate until converge
+    
+    
+    # heat transport between surface and deep soil layer to update Tsoiwl1 from CLASS model
+    rTsoil <- rTsoil.sat * (Wsat/Wsoil2)^(bb/(2*log(10)))
+    dTsoil1.dt <- (rTsoil*G - (2*pi/tau.soil)*(Tsoil1 - Tsoil2)) #Eq. (9.32) of de Arellano et al. (2015)
+    
+    if (soilWTF) {
+      # update soil water content, based on CLASS model
+      C1 <- C1sat*(Wsat/Wsoil1)^(bb/2 + 1)  #Eq. (9.35) of de Arellano et al. (2015)
+      Wsmall <- 1E-3
+      C2 <- C2ref*(Wsoil2/(Wsat - Wsoil2 + Wsmall))  #Eq. (9.36) of de Arellano et al. (2015)
+      Wsoil1eq <- Wsoil2 - aa*Wsat*((Wsoil2/Wsat)^pp)*(1-(Wsoil2/Wsat)^(8*pp))  #Eq. (9.37) of de Arellano et al. (2015)
+      # Eq. (9.34) of de Arellano et al. (2015); NOTE:  use LE instead of LEsoil as in (9.34), and -1 multiplied by C1 that is missing in (9.34)
+      dWsoil1.dt <- ((-C1/(rho.W*d1))*(LE/Lv) - (C2/tau.soil)*(Wsoil1 - Wsoil1eq))
+      # make sure that Wsoil1 does not dip below Wwilt;  NOTE:  this does NOT conserve water (since could stll have residual E from minimum gv)
+      if(Wsoil1 < Wwilt){dWsoil1.dt <- (Wwilt-Wsoil1)/dt;Wsoil1 <- Wwilt}  
+      if (Wsoil1 < 0) {dWsoil1.dt <- (0-Wsoil1)/dt;Wsoil1 <- 0}
+    } else {
+      dWsoil1.dt <- 0
+    } #if (soilWTF) {
+    
+    # if want atmosphere to respond
+    # Based on "zero-order jump" or "slab" model of convective boundary layer, described in Pg. 151~155 of Garratt [1992]
+    CO2flux.veg <- NA; CO2flux.ent <- NA; CO2flux.tot <- NA
+    Fhthetav <- 0
+    if (atmrespondTF) {
+      #calculate surface virtual heat flux
+      Lv <- latentheat(T-273.15)  # latent heat of vaporization [J/g]
+      E <- LE/Lv   # surface moisture flux [g/m^2/s] 
+      F0theta <- H/Cp  # potential heat flux [K-kg/m^2/s]
+      F0thetav <- F0theta+0.073*Lv*E/Cp # virtual heat flux [K-kg/m^2/s]
+      Fhthetav <- -1*Beta*F0thetav   # closure hypothesis (Eq. 6.15 of Garratt [1992])
+      if (ABLTF) {
+        # calculate ABL growth rate
+        dh.dt<-(1+2*Beta)*F0thetav/(gamma*h)
+        if (F0thetav<=0.00){dh.dt <- (hmin - h)/dt;Fhthetav <- 0} # override value:  ABL collapses
+      } else {
+        #ABLdepth_DAY <- readRDS("ABLdepth_DAY.RDS")
+        STEP <- 3600  # time stamp in prescribed object [s]--default is hourly
+        if(max(as.numeric(names(ABLdepth_DAY)))>86000) STEP <- 1  # time stamp is in [s]
+        h.t <- approx(x=as.numeric(names(ABLdepth_DAY))*STEP,y=ABLdepth_DAY,xout=time%%(24*3600))$y  
+        h <- h.t
+        h.tnext <- approx(x=as.numeric(names(ABLdepth_DAY))*STEP,y=ABLdepth_DAY,xout=(time+dt)%%(24*3600))$y  
+        dh.dt <- (h.tnext-h.t)/dt
+        if (F0thetav<=0.00|dh.dt==0){Fhthetav <- 0} # override value:  ABL collapses
+      } # if(ABLTF){
+      
+      rhobar <- rho.surf*(1-exp(-h/Hscale))*(Hscale/h)  # determine ABL-averaged air density [kg/m3]
+      
+      # calculate entrainment flux of humidity
+      deltaq <- (qabove - qa)
+      Fhq <- 0
+      if(dh.dt>=0)Fhq <- -1*rhobar*deltaq*(dh.dt-W)*1000  # entrainment flux of humidity [g/m2/s] NOTE:  assume CONSTANT air density!
+      dq.dt <- (E - Fhq)/(rhobar*1000*h) # change of humidity in ABL [1/s]
+      
+      # update ABL-averaged thetav
+      dthetavM.dt <- (F0thetav - Fhthetav)/h   # change of thetav in ABL [K-kg/m^3/s]
+      dthetavM.dt <- dthetavM.dt/rhobar        # [K-kg/m^3/s]=>[K/s]
+      
+      # update ABL-averaged CO2
+      dC.dt <- 0
+      if (co2budgetTF) {
+        CO2flux.veg <- (-1*An + Resp)  # surface CO2 flux [umole/m2/s]; photosynthesis is a negative flux (removal from atmosphere)
+        if(co2fluxprescTF){
+          # CO2flux.veg_DAY <- readRDS("CO2flux.veg_DAY.RDS")
+          STEP <- 3600  # time step in prescribed object [s]
+          if(max(as.numeric(names(CO2flux.veg_DAY)))>86000) STEP <- 1  # time stamp is in [s]
+          CO2flux.veg.t <- approx(x=as.numeric(names(CO2flux.veg_DAY))*STEP,y=CO2flux.veg_DAY,xout=time%%(24*3600))$y  
+          CO2flux.veg <- CO2flux.veg.t
+        } # if(co2fluxprescTF){
+        CO2flux.tot <- CO2flux.veg
+        CO2flux.ent <- 0
+        if(dh.dt>0){
+          CO2flux.ent<-(rhobar/(Md/1000))*(dh.dt - W)*(Cabove - CO2)   # entrainment flux of CO2 [umole/m2/s]
+          CO2flux.tot <- CO2flux.veg + CO2flux.ent
+        } # if(dh.dt>0){
+        dC.dt <- CO2flux.tot*(Md/1000)/(rhobar*h)  # dilute surface flux in box of height h to generate change in CO2 [ppm/s]
+      } # if (co2budgetTF) {
+      
+    } else{
+      Lv <- latentheat(T-273.15)  # latent heat of vaporization [J/g]
+      E <- LE/Lv   # surface moisture flux [g/m^2/s] 
+      Fhq <- 0
+      deltaq <- 0
+      dC.dt <- 0
+      dthetavM.dt <- 0
+      dq.dt <- 0
+      dh.dt <- 0
     } # if(atmrespondTF){
     
-    # determine sensible heat flux
-    rho.surf <- Psurf*100/(Rd*T)   # surface air density [kg/m3]
-    raero <- raero.f(Ur=Ur,zr=zr,z0=z0,rho=rho.surf)
-    H <- (Cp*rho.surf/(raero))*(T-Ta)   # [W/m2]
-      
-    # determine latent heat flux
-    beta.W <- 1   # water stress parameter (dependent on soil moisture)
-    Lv <- 1000*latentheat(T-273.15)  # latent heat of vaporization [J/kg]
-    esat <- satvap(T-273.15)/100     # saturation vapor pressure [hPa]
-    e <- qa*Psurf/(Rd/Rv)            # vapor pressure [hPa]
-    VPD <- 100*(esat-e)              # vapor pressure deficit [Pa]
-    qsat <- (Rd/Rv)*esat/Psurf       # saturation specific humidity [g/g]
-    if (vegcontrolTF) {
-      if (soilWTF) {
-        # Eq. (12.56) of Bonan (2019)
-        beta.W <- (Wsoil1 - Wwilt)/(Wfc - Wwilt)
-        if (Wsoil1 >= Wfc) beta.W <- 1.0
-        if (Wsoil1 <= Wwilt) beta.W <- 0
-      } # if (soilWTF)
-      # Ball-Berry + Farquhar coupled stomatal conductance & photosynthesis model for vegetation resistance [s/m]
-      hs <- e/esat  # fractional humidity (=1/RH) at leaf surface [.]   
-      if(hs<0.7) hs <- hs + 0.3   #!!! quick adjustment that ensures leaf surface is not too dry...accounts for higher humidity within canopy  !!!#
-      cs <- CO2    # CO2 concentration at leaf surface [umole/mole]
-      BBFout <- BBF(SW=SWdn.t,Tleaf.C=T-273.15,hs=hs,beta.W=beta.W,cs=cs,Psurf=Psurf)  
-      gsv <- BBFout["gsv"]  # stomatal conductance with respect to water vapor [mole H2O/m2/s]  
-      rho.mole <- rho.surf*1000/Md # air density [kg/m3] => molar density [moles/m3]
-      gsv <- gsv/rho.mole   # [mole/m2/s] => [m/s]
-      rveg <- 1/gsv         # vegetation resistance [s/m]
-      An <- BBFout["An"]    # Net photosynthesis [umole/m2/s]
-      ci <- BBFout["ci"]    # intercellular CO2 [umole/mole]
-    } else {
-      rveg <- 1/gvmax
-      An <- NA; ci <- NA
-    } # if(vegcontrolTF){
-      
-    # scale up photosynthesis and stomatal conductance to CANOPY values using Big-Leaf Model, based on Eq. (15.5) of Bonan (2019)
-    scale.canopy<-(1-exp(-Kb*LAI))/Kb
-    An <- An*scale.canopy
-    gv <- (1/rveg)*scale.canopy
-    rveg <- 1/gv
-    LE <- (Lv*rho.surf/(raero+rveg))*(qsat-qa) #[W/m2]
-    if(LE<0) LE <- 0
     
-    # determine respirational flux of CO2 to atmosphere
-    Resp <- Resp25*(Q10^((T-298.15)/10))  # respiration based on Q10 formulation
-          
-    # determine ground heat flux 
-    # use two-layer (force-restore) soil model to calculate ground heat flux and soil moisture
-    G <- Lambda * (T - Tsoil1)
-      
-    Storage <- Rn - LE - H - G
-    # update temperature 
-    DT <- (Storage/Cs)*dt
-    T <- T+DT
-    #print(paste("iterating so that T converges:",countT,paste("T =",signif(T,5)),signif(DT,4)))
-    iterateT <- abs(DT)>DTtol   # continue iterating until T converges
-  } # while (iterateT) {   #iterate until converge
-
-  
-  # heat transport between surface and deep soil layer to update Tsoil1 from CLASS model
-  rTsoil <- rTsoil.sat * (Wsat/Wsoil2)^(bb/(2*log(10)))
-  dTsoil1.dt <- (rTsoil*G - (2*pi/tau.soil)*(Tsoil1 - Tsoil2)) #Eq. (9.32) of de Arellano et al. (2015)
-  
-  if (soilWTF) {
-    # update soil water content, based on CLASS model
-    C1 <- C1sat*(Wsat/Wsoil1)^(bb/2 + 1)  #Eq. (9.35) of de Arellano et al. (2015)
-    Wsmall <- 1E-3
-    C2 <- C2ref*(Wsoil2/(Wsat - Wsoil2 + Wsmall))  #Eq. (9.36) of de Arellano et al. (2015)
-    Wsoil1eq <- Wsoil2 - aa*Wsat*((Wsoil2/Wsat)^pp)*(1-(Wsoil2/Wsat)^(8*pp))  #Eq. (9.37) of de Arellano et al. (2015)
-    # Eq. (9.34) of de Arellano et al. (2015); NOTE:  use LE instead of LEsoil as in (9.34), and -1 multiplied by C1 that is missing in (9.34)
-    dWsoil1.dt <- ((-C1/(rho.W*d1))*(LE/Lv) - (C2/tau.soil)*(Wsoil1 - Wsoil1eq))
-    # make sure that Wsoil1 does not dip below Wwilt;  NOTE:  this does NOT conserve water (since could stll have residual E from minimum gv)
-    if(Wsoil1 < Wwilt){dWsoil1.dt <- (Wwilt-Wsoil1)/dt;Wsoil1 <- Wwilt}  
-    if (Wsoil1 < 0) {dWsoil1.dt <- (0-Wsoil1)/dt;Wsoil1 <- 0}
-  } else {
-    dWsoil1.dt <- 0
-  } #if (soilWTF) {
-  
-  # if want atmosphere to respond
-  # Based on "zero-order jump" or "slab" model of convective boundary layer, described in Pg. 151~155 of Garratt [1992]
-  CO2flux.veg <- NA; CO2flux.ent <- NA; CO2flux.tot <- NA
-  Fhthetav <- 0
-  if (atmrespondTF) {
-    #calculate surface virtual heat flux
-    Lv <- latentheat(T-273.15)  # latent heat of vaporization [J/g]
-    E <- LE/Lv   # surface moisture flux [g/m^2/s] 
-    F0theta <- H/Cp  # potential heat flux [K-kg/m^2/s]
-    F0thetav <- F0theta+0.073*Lv*E/Cp # virtual heat flux [K-kg/m^2/s]
-    Fhthetav <- -1*Beta*F0thetav   # closure hypothesis (Eq. 6.15 of Garratt [1992])
-    if (ABLTF) {
-      # calculate ABL growth rate
-      dh.dt<-(1+2*Beta)*F0thetav/(gamma*h)
-      if (F0thetav<=0.00){dh.dt <- (hmin - h)/dt;Fhthetav <- 0} # override value:  ABL collapses
-    } else {
-      ABLdepth_DAY <- readRDS("ABLdepth_DAY.RDS")
-      h.t <- approx(x=as.numeric(names(ABLdepth_DAY))*3600,y=ABLdepth_DAY,xout=time%%(24*3600))$y  
-      h <- h.t
-      h.tnext <- approx(x=as.numeric(names(ABLdepth_DAY))*3600,y=ABLdepth_DAY,xout=(time+dt)%%(24*3600))$y  
-      dh.dt <- (h.tnext-h.t)/dt
-      if (F0thetav<=0.00|dh.dt==0){Fhthetav <- 0} # override value:  ABL collapses
-    } # if(ABLTF){
+    # derivatives of variables--need to be returned as part of call to 'ode'
+    DT <- DT
+    DTa <- dthetavM.dt/(1+0.61*qa)
+    Dqa <- dq.dt
+    DthetavM <- dthetavM.dt
+    DTsoil1 <- dTsoil1.dt
+    DWsoil1 <- dWsoil1.dt
+    Dh <- dh.dt
+    DCO2 <- dC.dt 
     
-    rhobar <- rho.surf*(1-exp(-h/Hscale))*(Hscale/h)  # determine ABL-averaged air density [kg/m3]
+    #variables that aren't integrated with time and aren't returned as derivatives
+    vars2 <- c(SWdn=SWdn.t,LWdn=LWdn.t,GHG.FORCE=GHG.FORCE,Rn=as.numeric(Rn),LWup=as.numeric(LWup),H=as.numeric(H),LE=as.numeric(LE),G=as.numeric(G),
+               RH=as.numeric(RH),RH.h=as.numeric(RH.h),cloud=as.numeric(cloud),albedo=as.numeric(albedo),qsat=as.numeric(qsat),
+               An=as.numeric(An),rveg=as.numeric(rveg),raero=as.numeric(raero),beta.W=as.numeric(beta.W),
+               CO2flux.veg=as.numeric(CO2flux.veg),CO2flux.ent=as.numeric(CO2flux.ent),CO2flux.tot=as.numeric(CO2flux.tot),
+               dh.dt=as.numeric(dh.dt),E=as.numeric(E),Fhq=as.numeric(Fhq),deltaq=as.numeric(deltaq),Fhthetav=as.numeric(Fhthetav))
     
-    # calculate entrainment flux of humidity
-    deltaq <- (qabove - qa)
-    Fhq <- 0
-    if(dh.dt>=0)Fhq <- -1*rhobar*deltaq*(dh.dt-W)*1000  # entrainment flux of humidity [g/m2/s] NOTE:  assume CONSTANT air density!
-    dq.dt <- (E - Fhq)/(rhobar*1000*h) # change of humidity in ABL [1/s]
-    
-    # update ABL-averaged thetav
-    dthetavM.dt <- (F0thetav - Fhthetav)/h   # change of thetav in ABL [K-kg/m^3/s]
-    dthetavM.dt <- dthetavM.dt/rhobar        # [K-kg/m^3/s]=>[K/s]
-    
-    # update ABL-averaged CO2
-    dC.dt <- 0
-    if (co2budgetTF) {
-      CO2flux.veg <- (-1*An + Resp)  # surface CO2 flux [umole/m2/s]; photosynthesis is a negative flux (removal from atmosphere)
-      if(co2fluxprescTF){
-        CO2flux.veg_DAY <- readRDS("CO2flux.veg_DAY.RDS")
-        CO2flux.veg.t <- approx(x=as.numeric(names(CO2flux.veg_DAY))*3600,y=CO2flux.veg_DAY,xout=time%%(24*3600))$y  
-        CO2flux.veg <- CO2flux.veg.t
-      } # if(co2fluxprescTF){
-      CO2flux.tot <- CO2flux.veg
-      CO2flux.ent <- 0
-      if(dh.dt>0){
-        CO2flux.ent<-(rhobar/(Md/1000))*(dh.dt - W)*(Cabove - CO2)   # entrainment flux of CO2 [umole/m2/s]
-        CO2flux.tot <- CO2flux.veg + CO2flux.ent
-      } # if(dh.dt>0){
-      dC.dt <- CO2flux.tot*(Md/1000)/(rhobar*h)  # dilute surface flux in box of height h to generate change in CO2 [ppm/s]
-    } # if (co2budgetTF) {
-    
-  } else{
-    Lv <- latentheat(T-273.15)  # latent heat of vaporization [J/g]
-    E <- LE/Lv   # surface moisture flux [g/m^2/s] 
-    Fhq <- 0
-    deltaq <- 0
-    dC.dt <- 0
-    dthetavM.dt <- 0
-    dq.dt <- 0
-    dh.dt <- 0
-  } # if(atmrespondTF){
-  
-  
-  # derivatives of variables--need to be returned as part of call to 'ode'
-  DT <- DT
-  DTa <- dthetavM.dt/(1+0.61*qa)
-  Dqa <- dq.dt
-  DthetavM <- dthetavM.dt
-  DTsoil1 <- dTsoil1.dt
-  DWsoil1 <- dWsoil1.dt
-  Dh <- dh.dt
-  DCO2 <- dC.dt 
-    
-  #variables that aren't integrated with time and aren't returned as derivatives
-  vars2 <- c(SWdn=SWdn.t,LWdn=LWdn.t,GHG.FORCE=GHG.FORCE,Rn=as.numeric(Rn),LWup=as.numeric(LWup),H=as.numeric(H),LE=as.numeric(LE),G=as.numeric(G),
-             RH=as.numeric(RH),RH.h=as.numeric(RH.h),cloud=as.numeric(cloud),albedo=as.numeric(albedo),qsat=as.numeric(qsat),
-             An=as.numeric(An),rveg=as.numeric(rveg),raero=as.numeric(raero),beta.W=as.numeric(beta.W),
-             CO2flux.veg=as.numeric(CO2flux.veg),CO2flux.ent=as.numeric(CO2flux.ent),CO2flux.tot=as.numeric(CO2flux.tot),
-             dh.dt=as.numeric(dh.dt),E=as.numeric(E),Fhq=as.numeric(Fhq),deltaq=as.numeric(deltaq),Fhthetav=as.numeric(Fhthetav))
- 
-  return(list(c(DT,DTa,Dqa,DthetavM,DTsoil1,DWsoil1,Dh,DCO2),vars2))
+    return(list(c(DT,DTa,Dqa,DthetavM,DTsoil1,DWsoil1,Dh,DCO2),vars2))
   })
 } # LAIM <-function(time,state,parms,SWdn_TIME,Ta_TIME){
 
 
 ########################################################
 # Time integration: call LAIM function using ode()
-if(atmrespondTF&ABLTF&t.day>1){
+ABLtest <- ABLTF
+if(!ABLTF) ABLtest <- length(unique(ABLdepth_DAY))>1  # is there variability in prescribed ABL depth?
+if(atmrespondTF&ABLtest&t.day>1){
   print(paste("==========Multiple calls to ode:=========="))
   result <- NULL
   for(t.dd in 1:(ceiling(max((times)/(3600*24))))){
@@ -691,15 +699,16 @@ if (vegcontrolTF) {
 
 if (atmrespondTF&co2budgetTF) {
   # plot time series of CO2 
-  dev.new()
+  dev.new();par(mar=c(5,4,4,4))
   plot(result[,"time"]/3600,result[,"CO2"],type="l",xlab="Time [hour]",ylab="CO2 [ppm]",
-       cex.axis=1.3,cex.lab=1.3,lwd=2,main=xmain)
+       cex.axis=1.3,cex.lab=1.3,lwd=2,main=paste0(xmain,";  co2fluxprescTF=",co2fluxprescTF))
   par(new=TRUE)
   ylims <- range(result[,c("CO2flux.ent","CO2flux.veg")],na.rm=TRUE)
   plot(result[,"time"]/3600,result[,"CO2flux.veg"],type="l",axes=F,xlab="",ylab="",col="darkgray",ylim=ylims,lty=1,lwd=2)
   lines(result[,"time"]/3600,result[,"CO2flux.ent"],col="darkgray",lty=3,lwd=2)
   abline(h=0,lty=1,lwd=0.5,col="darkgray")
   axis(4,cex.lab=1.3,cex.axis=1.3,col="darkgray",col.axis="darkgray")
+  mtext(text=expression(paste("CO2 Flux [",mu,"mole ",m^-2," ",s^-1,"]",sep="")),line=2.5,cex=1.3,side=4,col="darkgray")
   legend(x="topright",c("CO2tot","dCO2.veg","dCO2.ent"),lwd=2,lty=c(1,1,3),
          col=c("black","darkgray","darkgray"),text.col=c("black","darkgray","darkgray"))
   dev.copy(png,"CO2.png");dev.off();print("CO2.png written out")
