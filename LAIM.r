@@ -12,11 +12,11 @@ vegcontrolTF <- TRUE    # vegetation control?
 soilWTF <- TRUE         # turn on soil moisture feedbacks?
 co2budgetTF <- TRUE     # track atmospheric CO2, based on surface and entrainment fluxes? 
 if (!atmrespondTF & ABLTF) stop ("atmrespondTF needs to be TRUE to allow ABL to grow and decay")
-if (!vegcontrolTF & co2budgetTF) stop ("vegcontrolTF needs to be TRUE to track CO2")
 if (!vegcontrolTF & soilWTF) stop ("vegcontrolTF needs to be TRUE for soil moisture feedback to work")
 LWdnTF <- TRUE          # does LWdn respond dynamically?  
 co2fluxprescTF <- FALSE # is CO2 flux (& ABL) prescribed, rather than simulated internally?
 if (!co2budgetTF & co2fluxprescTF) stop ("co2budgetTF needs to be TRUE to prescribe CO2 flux")
+if (!co2fluxprescTF) {if (!vegcontrolTF & co2budgetTF) stop ("vegcontrolTF needs to be TRUE to track CO2, if CO2 fluxes not prescribed")}
 #################################################
 
 #################################################
@@ -676,7 +676,7 @@ if (vegcontrolTF) {
   dev.copy(png,"PSN.png");dev.off();print("PSN.png written out")
 } #if(vegcontrolTF){
 
-if (vegcontrolTF&atmrespondTF&co2budgetTF) {
+if ((vegcontrolTF|co2fluxprescTF)&atmrespondTF&co2budgetTF) {
   # plot time series of CO2 
   dev.new()
   plot(result[,"time"]/3600,result[,"CO2"],type="l",xlab="Time [hour]",ylab="CO2 [ppm]",
@@ -690,7 +690,7 @@ if (vegcontrolTF&atmrespondTF&co2budgetTF) {
   legend(x="topright",c("CO2tot","dCO2.veg","dCO2.ent"),lwd=2,lty=c(1,1,3),
          col=c("black","darkgray","darkgray"),text.col=c("black","darkgray","darkgray"))
   dev.copy(png,"CO2.png");dev.off();print("CO2.png written out")
-} #if (vegcontrolTF&atmrespondTF) {
+} #if ((vegcontrolTF|co2fluxprescTF)&atmrespondTF&co2budgetTF) {
 
 if (cloudTF) {
   # plot time series of cloud fraction, albedo, and relative humidity
