@@ -542,7 +542,7 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
   #variables that aren't integrated with time and aren't returned as derivatives
   vars2 <- c(SWdn=SWdn.t,LWdn=LWdn.t,GHG.FORCE=GHG.FORCE,Rn=as.numeric(Rn),LWup=as.numeric(LWup),H=as.numeric(H),LE=as.numeric(LE),G=as.numeric(G),
              RH=as.numeric(RH),RH.h=as.numeric(RH.h),cloud=as.numeric(cloud),albedo=as.numeric(albedo),qsat=as.numeric(qsat),
-             An=as.numeric(An),rveg=as.numeric(rveg),raero=as.numeric(raero),beta.W=as.numeric(beta.W),
+             An=as.numeric(An),Resp=as.numeric(Resp),rveg=as.numeric(rveg),raero=as.numeric(raero),beta.W=as.numeric(beta.W),
              CO2flux.veg=as.numeric(CO2flux.veg),CO2flux.ent=as.numeric(CO2flux.ent),CO2flux.tot=as.numeric(CO2flux.tot),
              dh.dt=as.numeric(dh.dt),E=as.numeric(E),Fhq=as.numeric(Fhq),deltaq=as.numeric(deltaq),Fhthetav=as.numeric(Fhthetav))
  
@@ -600,6 +600,7 @@ xmain <- paste(xmain,"  ABLTF=",ABLTF)
 xmain <- paste(xmain,"  cloudTF=",cloudTF)
 xmain <- paste(xmain,"\nvegcontrolTF=",vegcontrolTF)
 xmain <- paste(xmain,"  soilWTF=",soilWTF)
+if(co2fluxprescTF) xmain <- paste(xmain,"  co2fluxprescTF=",co2fluxprescTF)
 xmain <- paste(xmain,"\ndt=",dt,"[s]")
 # regenerate VPD from qsat and qa 
 e <- result[,"qa"]*Psurf/(Rd/Rv)      # vapor pressure [hPa]
@@ -671,24 +672,27 @@ if (vegcontrolTF) {
   # plot time series of photosynthetic uptake 
   dev.new()
   plot(result[,"time"]/3600,result[,"An"],type="l",xlab="Time [hour]",ylab="",
-       cex.axis=1.3,cex.lab=1.3,lwd=2,main=xmain)
-  mtext(text=expression(paste("Net Photosynthesis (An) [",mu,"mole ",m^-2," ",s^-1,"]",sep="")),line=2,cex=1.3,side=2)
-  dev.copy(png,"PSN.png");dev.off();print("PSN.png written out")
+       cex.axis=1.3,cex.lab=1.3,lwd=3,main=xmain)
+  mtext(text=expression(paste("Photosynthesis or Respiration [",mu,"mole ",m^-2," ",s^-1,"]",sep="")),line=2,cex=1.3,side=2)
+  lines(result[,"time"]/3600,result[,"Resp"],lty=3,lwd=2)
+  legend(x="topright",c("Photosynthesis (An)","Respiration"),lwd=c(3,2),lty=c(1,3))
+  dev.copy(png,"An_Resp.png");dev.off();print("An_Resp.png written out")
 } #if(vegcontrolTF){
 
 if ((vegcontrolTF|co2fluxprescTF)&atmrespondTF&co2budgetTF) {
-  # plot time series of CO2 
   dev.new()
-  plot(result[,"time"]/3600,result[,"CO2"],type="l",xlab="Time [hour]",ylab="CO2 [ppm]",
-       cex.axis=1.3,cex.lab=1.3,lwd=2,main=xmain)
+  plot(result[,"time"]/3600,result[,"CO2"],type="l",xlab="Time [hour]",ylab="",
+              cex.axis=1.3,cex.lab=1.3,lwd=2,main=xmain)
+  mtext(text=expression(paste("CO"[2]," [ppm]"),sep=""),line=2.5,cex=1.3,side=2)
   par(new=TRUE)
   ylims <- range(result[,c("CO2flux.ent","CO2flux.veg")],na.rm=TRUE)
   plot(result[,"time"]/3600,result[,"CO2flux.veg"],type="l",axes=F,xlab="",ylab="",col="darkgray",ylim=ylims,lty=1,lwd=2)
   lines(result[,"time"]/3600,result[,"CO2flux.ent"],col="darkgray",lty=3,lwd=2)
   abline(h=0,lty=1,lwd=0.5,col="darkgray")
   axis(4,cex.lab=1.3,cex.axis=1.3,col="darkgray",col.axis="darkgray")
-  legend(x="topright",c("CO2tot","dCO2.veg","dCO2.ent"),lwd=2,lty=c(1,1,3),
+  legend(x="topright",c("CO2 in ABL","CO2flux.veg","CO2flux.ent"),lwd=2,lty=c(1,1,3),
          col=c("black","darkgray","darkgray"),text.col=c("black","darkgray","darkgray"))
+  mtext(text=expression(paste("CO"[2]," Flux [",mu,"mole ",m^-2," ",s^-1,"]",sep="")),line=-1,cex=1.3,side=4,col="darkgray")
   dev.copy(png,"CO2.png");dev.off();print("CO2.png written out")
 } #if ((vegcontrolTF|co2fluxprescTF)&atmrespondTF&co2budgetTF) {
 
