@@ -210,7 +210,7 @@ if(co2fluxprescTF){
   print("Prescribing CO2 flux...")
   CO2flux.veg_DAY <- SWdn_DAY
   CO2flux.veg_DAY[1:length(CO2flux.veg_DAY)] <- 5      # prescribe daily cycle of CO2 flux [umole/m2/s]
-  saveRDS(CO2flux.veg_DAY,file="CO2flux.veg_DAY.RDS")  # save prescribed info in RDS file to be loaded within LAIM function
+  # saveRDS(CO2flux.veg_DAY,file="CO2flux.veg_DAY.RDS")  # save prescribed info in RDS file to be loaded within LAIM function
 } # if(co2fluxprescTF){
 
 #################################################
@@ -504,7 +504,7 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
     if (co2budgetTF) {
       CO2flux.veg <- (-1*An + Resp)  # surface CO2 flux [umole/m2/s]; photosynthesis is a negative flux (removal from atmosphere)
       if(co2fluxprescTF){
-        CO2flux.veg_DAY <- readRDS("CO2flux.veg_DAY.RDS")
+        # CO2flux.veg_DAY <- readRDS("CO2flux.veg_DAY.RDS")
         CO2flux.veg.t <- approx(x=as.numeric(names(CO2flux.veg_DAY))*3600,y=CO2flux.veg_DAY,xout=time%%(24*3600))$y  
         CO2flux.veg <- CO2flux.veg.t
       } # if(co2fluxprescTF){
