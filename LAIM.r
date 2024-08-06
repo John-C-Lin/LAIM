@@ -211,7 +211,7 @@ GHG.FORCE <- CO2.SENSITIVITY*log(CO2.colave/CO2.baseline)/log(2) # GHG forcing--
 hini <- hmin  # initial ABL depth [m]
 if(!ABLTF){
   print("Prescribing ABL depth...")
-  # ABL depth prescribed with hourly timestep
+  # NOTE:  ABL depth needs to be prescribed with either hourly or 1-sec timestep
   ABLdepth_DAY <- SWdn_DAY
   ABLdepth_DAY[1:length(ABLdepth_DAY)] <- 200          # prescribe daily cycle of ABL depth [m]
   hini <- ABLdepth_DAY[1]
@@ -219,6 +219,7 @@ if(!ABLTF){
 
 if(co2fluxprescTF){
   print("Prescribing CO2 flux...")
+  # NOTE:  CO2 flux needs to be prescribed with either hourly or 1-sec timestep
   CO2flux.veg_DAY <- SWdn_DAY
   CO2flux.veg_DAY[1:length(CO2flux.veg_DAY)] <- 5      # prescribe daily cycle of CO2 flux [umole/m2/s]
 } # if(co2fluxprescTF){
