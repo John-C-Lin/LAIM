@@ -519,7 +519,9 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
       if (co2budgetTF) {
         CO2flux.veg <- (-1*An + Resp)  # surface CO2 flux [umole/m2/s]; photosynthesis is a negative flux (removal from atmosphere)
         if(co2fluxprescTF){
-          CO2flux.veg.t <- approx(x=as.numeric(names(CO2flux.veg_DAY))*3600,y=CO2flux.veg_DAY,xout=time%%(24*3600))$y  
+          STEP <- 3600  # time step in prescribed object [s]
+          if(max(as.numeric(names(CO2flux.veg_DAY)))>86000) STEP <- 1  # time stamp is in [s]
+          CO2flux.veg.t <- approx(x=as.numeric(names(CO2flux.veg_DAY))*STEP,y=CO2flux.veg_DAY,xout=time%%(24*3600))$y  
           CO2flux.veg <- CO2flux.veg.t
         } # if(co2fluxprescTF){
         CO2flux.tot <- CO2flux.veg
