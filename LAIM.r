@@ -213,7 +213,7 @@ if(!ABLTF){
   print("Prescribing ABL depth...")
   # NOTE:  ABL depth needs to be prescribed with either hourly or 1-sec timestep
   ABLdepth_DAY <- SWdn_DAY
-  ABLdepth_DAY[1:length(ABLdepth_DAY)] <- 200          # prescribe daily cycle of ABL depth [m]
+  ABLdepth_DAY[1:length(ABLdepth_DAY)] <- hmin         # prescribe daily cycle of ABL depth [m]
   hini <- ABLdepth_DAY[1]
 } # if(!ABLTF){
 
