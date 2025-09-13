@@ -91,7 +91,7 @@ Resp25 <- 2        # respiration rate at 25-deg C [umole CO2/m2/s]
 Hveg <- 10               # height of vegetation [m]
 rho.veg <- 0.7E6         # wood density [g/m3]
 Cp.veg <- 3000           # bulk heat capacity of above-ground vegetation [J/kg/K];  Sect. 7.2 of Bonan (2019)
-Cs <- Cp.veg*(rho.veg/1000)*Hveg/100  # heat capacity of vegetation [J/K/m2]
+Cs <- Cp.veg*(rho.veg/1000)*Hveg  # heat capacity of vegetation [J/K/m2]
 
 # soil parameters from Clapp & Hornberger (1978); taken from CLASS model (https://github.com/classmodel/modelgui/blob/master/landsoil.cpp)
 # select soil type from one of below
