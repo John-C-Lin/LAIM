@@ -22,7 +22,7 @@ if (!co2fluxprescTF) {if (!vegcontrolTF & co2budgetTF) stop ("vegcontrolTF needs
 #################################################
 # Model timestep and duration
 dt <- 20           # model timestep [s]
-t.day <- 2         # run time in days
+t.day <- 3         # run time in days
 tmax <- t.day*24*3600  #maximum time [s]
 times <- seq(0,tmax,dt) #vector of time steps [s]
 DTtol <- 0.01      # tolerance for change in T when solving numerically (if T is within this range, then stop iterating) [oK]
