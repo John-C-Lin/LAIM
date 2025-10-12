@@ -4,11 +4,13 @@
 # 6/1/2020 by John C. Lin (John.Lin@utah.edu)
 
 BBF <- function(SW,Tleaf.C,hs,beta.W=1.0,cs=400,Psurf=1000){
-  # Arguments:  Atmospheric variables 
-  # SW is shortwave radiation [W/m2]
-  # Psurf is surface pressure [hPa]
-  # hs is fractional humidity (=RH/100) at leaf surface [.]
-  # cs is CO2 concentration at leaf surface [umole/mole]
+  # Arguments:   
+  #   SW is shortwave radiation [W/m2]
+  #   Tleaf.C is leaf temperature [deg-C]
+  #   hs is fractional humidity (=RH/100) at leaf surface [.]
+  #   beta.W is water stress parameter (dependent on soil moisture) [.]; see Eq. (12.56) of Bonan (2019)
+  #   cs is CO2 concentration at leaf surface [umole/mole]
+  #   Psurf is surface pressure [hPa]
   if(length(SW)>1|length(Tleaf.C)>1|length(hs)>1|length(beta.W)>1|length(cs)>1|length(Psurf)>1)
     stop("BBF:  arguments all need to have length=1")
   
