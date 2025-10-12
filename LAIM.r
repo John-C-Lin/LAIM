@@ -491,7 +491,7 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
       if (ABLTF) {
         Fhthetav <- -1*Beta*F0thetav   # closure hypothesis (Eq. 6.15 of Garratt [1992])
         # calculate ABL growth rate
-        dh.dt<-(1+2*Beta)*F0thetav/(gamma*h)
+        dh.dt<-(1+2*Beta)*F0thetav/(gamma*h)  # Eq. (6.18) of Garratt [1992]
         if (F0thetav<=0.00){dh.dt <- (hmin - h)/dt;Fhthetav <- 0} # override value:  ABL collapses
       } else {
         STEP <- 3600  # time stamp in prescribed object [s]--default is hourly
