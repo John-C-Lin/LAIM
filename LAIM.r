@@ -459,12 +459,12 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
     } # while (iterateT) {   #iterate until converge
     
     
-    # heat transport between surface and deep soil layer to update Tsoil1 from CLASS model
+    # heat transport between surface and deep soil layer to update Tsoil1 from CLASS model (https://github.com/classmodel/modelgui/blob/master/model.cpp)
     rTsoil <- rTsoil.sat * (Wsat/Wsoil2)^(bb/(2*log(10)))
     dTsoil1.dt <- (rTsoil*G - (2*pi/tau.soil)*(Tsoil1 - Tsoil2)) #Eq. (9.32) of de Arellano et al. (2015)
     
     if (soilWTF) {
-      # update soil water content, based on CLASS model
+      # update soil water content, based on CLASS model (https://github.com/classmodel/modelgui/blob/master/model.cpp)
       C1 <- C1sat*(Wsat/Wsoil1)^(bb/2 + 1)  #Eq. (9.35) of de Arellano et al. (2015)
       Wsmall <- 1E-3
       C2 <- C2ref*(Wsoil2/(Wsat - Wsoil2 + Wsmall))  #Eq. (9.36) of de Arellano et al. (2015)
