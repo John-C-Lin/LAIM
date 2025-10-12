@@ -129,7 +129,7 @@ BBF <- function(SW,Tleaf.C,hs,beta.W=1.0,cs=400,Psurf=1000){
   names(result) <- c("gsv","An","ci")
   return(result)
   
-} #BBF <- function(SW,Tleaf.C,hs,cs=400,Psurf=1000){
+} #BBF <- function(SW,Tleaf.C,hs,beta.W=1.0,cs=400,Psurf=1000){
 
 
 
