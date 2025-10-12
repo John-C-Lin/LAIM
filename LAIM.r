@@ -303,9 +303,9 @@ xinterv <- Ta.c[1]+273.15+c(-50,50)  # interval over which to search for equil t
 # use initial radiation, temps to solve for initial equil. temperature
 Tinit <- uniroot(f,interval=xinterv,Ta=Ta.c[1]+273.15,SWdn=SWdn[1],LWdn=LWdn[1],Tsoil1=Tsoil1,albedo.cloud=albedo.cloud,
                  albedo.surf=albedo.surf,epsilon.s=epsilon.s,Ur=Ur,zr=zr,z0=z0,gvmax=gvmax,RH=RH,Psurf=Psurf,Hscale=Hscale,GHG.FORCE=GHG.FORCE)$root
-tmp <- f(T=Tinit,Ta=Ta.c[1]+273.15,SWdn=SWdn[1],LWdn=LWdn[1],Tsoil1=Tsoil1,albedo.cloud=albedo.cloud,
+imbalance <- f(T=Tinit,Ta=Ta.c[1]+273.15,SWdn=SWdn[1],LWdn=LWdn[1],Tsoil1=Tsoil1,albedo.cloud=albedo.cloud,
          albedo.surf=albedo.surf,epsilon.s=epsilon.s,Ur=Ur,zr=zr,z0=z0,gvmax=gvmax,RH=RH,Psurf=Psurf,Hscale=Hscale,GHG.FORCE=GHG.FORCE)
-print(paste("Tinit [oC]:",signif(Tinit-273.15,5),";   (Rn-H-LE-G) =",signif(tmp,4),"[W/m2]"))
+print(paste("Tinit [oC]:",signif(Tinit-273.15,5),";   (Rn-H-LE-G) =",signif(imbalance,4),"[W/m2]"))
 
 #############################################################################################################
 #--------------------------------- ODE ODE ODE ODE ODE ODE ODE ODE ODE ODE ---------------------------------#
