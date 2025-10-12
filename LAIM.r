@@ -444,7 +444,7 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
       if(LE<0) LE <- 0
       
       # determine respirational flux of CO2 to atmosphere
-      Resp <- Resp25*(Q10^((T-298.15)/10))  # respiration based on Q10 formulation
+      Resp <- Resp25*(Q10^((T-298.15)/10))  # respiration flux based on Q10 formulation [umole CO2/m2/s]
       
       # determine ground heat flux 
       # use two-layer (force-restore) soil model to calculate ground heat flux and soil moisture
