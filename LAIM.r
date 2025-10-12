@@ -200,7 +200,7 @@ Cabove <- Cfree   # CO2 concentration [ppm] above ABL (later modified by value i
 albedo.cloud <- 0.5 # albedo of cloud
 
 # parameters determining CO2 greenhouse effect
-CO2.SENSITIVITY <- 3.7  # CO2 doubling sensitivity [W/m2 per doubling of CO2]  
+CO2.SENSITIVITY <- 3.7  # CO2 doubling sensitivity [W/m2 per doubling of CO2] (IPCC 2007; Myhre et al. 1998)
 CO2.baseline <- 280     # baseline to determine doubling (pre-industrial CO2 concentration [ppm])
 # ave CO2 in atmospheric column, using scale height as weighting (i.e., density follows exponential decay)
 CO2.colave <- Cair + (Cfree - Cair)*exp(-hmin/Hscale)           
