@@ -490,8 +490,8 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
       F0thetav <- F0theta+0.073*Lv*E/Cp # virtual heat flux [K-kg/m^2/s]
       if (ABLTF) {
         Fhthetav <- -1*Beta*F0thetav   # closure hypothesis (Eq. 6.15 of Garratt [1992])
-        # calculate ABL growth rate
-        dh.dt<-(1+2*Beta)*F0thetav/(gamma*h)
+        # calculate ABL growth rate [m/s]
+        dh.dt<-(1+2*Beta)*F0thetav/(rho.surf*gamma*h)  # Eq. (6.18) of Garratt [1992]
         if (F0thetav<=0.00){dh.dt <- (hmin - h)/dt;Fhthetav <- 0} # override value:  ABL collapses
       } else {
         STEP <- 3600  # time stamp in prescribed object [s]--default is hourly
