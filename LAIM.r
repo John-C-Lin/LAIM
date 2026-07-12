@@ -423,12 +423,7 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
   
     zsl <- 0.1*h  # surface layer height [m] assumed to be 10% of ABL height
     
-    countT <- 0; iterateT <- TRUE
-    while (iterateT) {   #iterate until convergence
-      countT <- countT + 1
-      if(countT > countTmax)stop("T does not converge")
-      
-      if (!atmrespondTF) {
+    if (!atmrespondTF) {
         Ta <- approx(x=as.numeric(names(Ta.c_DAY))*3600,y=Ta.c_DAY,xout=time%%(24*3600))$y+273.15  #use prescribed value
         qa <- qa.presc
       } # if(atmrespondTF){
@@ -492,14 +487,9 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
       G <- Lambda * (T - Tsoil1)
       
       Storage <- Rn - LE - H - G
-      # update temperature 
-      DT <- (Storage/Cs)*dt
-      T <- T+DT
-      #print(paste("iterating so that T converges:",countT,paste("T =",signif(T,5)),signif(DT,4)))
-      iterateT <- abs(DT)>DTtol   # continue iterating until T converges
-    } # while (iterateT) {   #iterate until converge
     
-    
+    dT.dt <- Storage/Cs  # [K/s]
+  
     # heat transport between surface and deep soil layer to update Tsoil1 from CLASS model (https://github.com/classmodel/modelgui/blob/master/model.cpp)
     rTsoil <- rTsoil.sat * (Wsat/Wsoil2)^(bb/(2*log(10)))
     dTsoil1.dt <- (rTsoil*G - (2*pi/tau.soil)*(Tsoil1 - Tsoil2)) #Eq. (9.32) of de Arellano et al. (2015)
@@ -533,7 +523,8 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
         Fhthetav <- -1*Beta*F0thetav   # closure hypothesis (Eq. 6.15 of Garratt [1992])
         # calculate ABL growth rate [m/s]
         dh.dt<-(1+2*Beta)*F0thetav/(rho.surf*gamma*h)  # Eq. (6.18) of Garratt [1992]
-        if (F0thetav<=0.00){dh.dt <- (hmin - h)/dt;Fhthetav <- 0} # override value:  ABL collapses
+        if (F0thetav<=0.00){dh.dt <- (hmin - h)/dt;Fhthetav <- 0}   # override value:  ABL collapses
+        #if (F0thetav<=0.00)print(paste(time,signif(F0thetav,5),signif(h,5),signif(dh.dt,5)))
       } else {
         STEP <- 3600  # time stamp in prescribed object [s]--default is hourly
         if(max(as.numeric(names(ABLdepth_DAY)))>86000) STEP <- 1  # time stamp is in [s]
@@ -588,7 +579,7 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
     
     
     # derivatives of variables--need to be returned as part of call to 'ode'
-    DT <- DT
+    DT <- dT.dt
     DTa <- dthetavM.dt/(1+0.61*qa)
     Dqa <- dq.dt
     DthetavM <- dthetavM.dt
