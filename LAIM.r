@@ -634,7 +634,7 @@ if(atmrespondTF&ABLTF&t.day>1){
                 Tsoil1=result.tmp$Tsoil1[ilast], Wsoil1=result.tmp$Wsoil1[ilast], h=result.tmp$h[ilast], CO2=result.tmp$CO2[ilast],zeta=result.tmp$zeta[ilast])
       names(yini) <- c("T","Ta","qa","thetavM","Tsoil1","Wsoil1","h","CO2","zeta")
     } # if(t.dd>1){
-    result.tmp <- ode(yini, times.sub, LAIM, parms, SWdn_DAY=SWdn_DAY, LWdn_DAY=LWdn_DAY,Ta.c_DAY=Ta.c_DAY, method = "lsoda")
+    result.tmp <- ode(yini, times.sub, LAIM, parms, SWdn_DAY=SWdn_DAY, LWdn_DAY=LWdn_DAY,Ta.c_DAY=Ta.c_DAY, method = "rk4")
     result.tmp <- data.frame(result.tmp)
     result <- rbind(result,result.tmp)
   } # for(t.dd in 1:(t.day+1)){
@@ -642,7 +642,7 @@ if(atmrespondTF&ABLTF&t.day>1){
   print(paste(filenm,"written out"))
 } else {
   # single call "ode" to integrate LAIM model in time
-  result <- ode(yini, times, LAIM, parms, SWdn_DAY=SWdn_DAY, LWdn_DAY=LWdn_DAY,Ta.c_DAY=Ta.c_DAY, method = "lsoda")
+  result <- ode(yini, times, LAIM, parms, SWdn_DAY=SWdn_DAY, LWdn_DAY=LWdn_DAY,Ta.c_DAY=Ta.c_DAY, method = "rk4")
   result <- data.frame(result)
   filenm <- "result.csv"; write.csv(result,file=filenm)
   print(paste(filenm,"written out"))
