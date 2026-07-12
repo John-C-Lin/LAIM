@@ -384,6 +384,7 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
   with(as.list(c(state,parms)),{
     zeta.old <- zeta
     # calculate RH at ABLtop and near ground surface
+    e <- qa*Psurf/(Rd/Rv)      # vapor pressure [hPa]
     RH <- e/(satvap(Ta - 273.15)/100)
     P.h <- Psurf*exp(-h/Hscale)
     e.h <- qa*(Rv/Rd)*P.h # vapor pressure at ABL top [hPa]
