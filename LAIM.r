@@ -362,16 +362,17 @@ names(yini) <- c("T","Ta","qa","thetavM","Tsoil1","Wsoil1","h","CO2","zeta")
 parms <- c(dt=dt,DTtol=DTtol,countTmax=countTmax)
 # 1.  flags
 parms <- c(parms,vegcontrolTF=vegcontrolTF,atmrespondTF=atmrespondTF,ABLTF=ABLTF,
-           soilWTF=soilWTF,co2budgetTF=co2budgetTF)
+           soilWTF=soilWTF,co2budgetTF=co2budgetTF,cloudTF=cloudTF,LWdnTF=LWdnTF,co2fluxprescTF=co2fluxprescTF)
 # 2.  atmospheric conditions 
 parms <- c(parms,Psurf=Psurf,qa.presc=qa.presc,Hscale=Hscale,hmin=hmin,Beta=Beta,
-           gamma=gamma,qabove=qabove,W=W,Ur=Ur,Cabove=Cabove,Cfree=Cfree,albedo.cloud=albedo.cloud)
+           gamma=gamma,qabove=qabove,W=W,Ur=Ur,Cabove=Cabove,Cfree=Cfree,albedo.cloud=albedo.cloud,
+           CO2.baseline=CO2.baseline,CO2.SENSITIVITY=CO2.SENSITIVITY)
 # 3.  land surface characteristics
 parms <- c(parms,gvmax=gvmax,albedo.surf=albedo.surf,z0=z0,epsilon.s=epsilon.s,
            LAI=LAI,Kb=Kb,Hveg=Hveg,rho.veg=rho.veg,Cp.veg=Cp.veg,Cs=Cs,Resp25=Resp25,Q10=Q10)
 # 4.  soil characteristics
 parms <- c(parms,Wsat=Wsat,Wfc=Wfc,Wwilt=Wwilt,aa=aa,bb=bb,pp=pp,rTsoil.sat=rTsoil.sat,
-           C1sat=C1sat,C2ref=C2ref,Lambda=Lambda,Tsoil2=Tsoil2,Wsoil2=Wsoil2,d1=d1)
+           C1sat=C1sat,C2ref=C2ref,Lambda=Lambda,Tsoil2=Tsoil2,Wsoil2=Wsoil2,d1=d1,tau.soil=tau.soil)
 
 ########################################################
 # define LAIM model function (what happens each time step)
