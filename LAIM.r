@@ -396,7 +396,13 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY,ABLdepth_DAY=NULL,CO
     stop("ABLdepth_DAY must be supplied when atmrespondTF = TRUE and ABLTF = FALSE")
   } # if (atmrespondTF & !ABLTF & is.null(ABLdepth_DAY)) {
   
-  if(((time/3600)%%1)==0) print(paste("Running model: time=",time/3600,"[hr]"))
+  # print model time, with code to deal with fact that numerical method could call LAIM() multiple instances to evaluate derivatives
+  hr <- round(time / 3600, 10)
+  if (abs(hr - round(hr)) < 1e-8 && round(hr) > last_printed_hour) {
+    print(paste("Running model: time=", round(hr), "[hr]"))
+    last_printed_hour <<- round(hr)  # "<<-" is a super-assignment: updated as a global variable
+  } # if (abs(hr - round(hr)) < 1e-8 && round(hr) > last_printed_hour) {
+  
   with(as.list(c(state,parms)),{
     zeta.old <- zeta
     
@@ -625,6 +631,7 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY,ABLdepth_DAY=NULL,CO
 
 ########################################################
 # Time integration: call LAIM function using ode()
+last_printed_hour <- -Inf  # "last_printed_hour" gets updated within ode as a global variable--helps with printing out time when numerical method calls LAIM repeated times
 if(atmrespondTF&ABLTF&t.day>1){
   print(paste("==========Multiple calls to ode:=========="))
   result <- NULL
