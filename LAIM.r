@@ -532,7 +532,6 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
         # calculate ABL growth rate [m/s]
         dh.dt<-(1+2*Beta)*F0thetav/(rho.surf*gamma*h)  # Eq. (6.18) of Garratt [1992]
         if (F0thetav<=0.00){dh.dt <- (hmin - h)/dt;Fhthetav <- 0}   # override value:  ABL collapses
-        #if (F0thetav<=0.00)print(paste(time,signif(F0thetav,5),signif(h,5),signif(dh.dt,5)))
       } else {
         STEP <- 3600  # time stamp in prescribed object [s]--default is hourly
         if(max(as.numeric(names(ABLdepth_DAY)))>86000) STEP <- 1  # time stamp is in [s]
@@ -588,7 +587,7 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
     
     # derivatives of variables--need to be returned as part of call to 'ode'
     DT <- dT.dt
-    DTa <- dthetavM.dt/(1+0.61*qa)
+    DTa <- (dthetavM.dt - 0.61*Ta*dq.dt)/(1+0.61*qa)
     Dqa <- dq.dt
     DthetavM <- dthetavM.dt
     DTsoil1 <- dTsoil1.dt
