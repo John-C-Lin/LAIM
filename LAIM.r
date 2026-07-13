@@ -445,8 +445,10 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
     H <- (Cp*rho.surf/(raero))*(T-Ta)   # [W/m2]
     wthetav <- H/(Cp*rho.surf)     # w'thetav' [K/m/s]
     F0buoy <- g*wthetav/thetavM     # surface buoyancy flux [m2/s3]
-    CM <- k^2/(log(zsl/z0)-psiM.f(zsl/L)+psiM.f(z0/L)) # CM is drag coefficient for momentum
-    ustar <- sqrt(CM)*Ur # update friction velocity [m/s]
+    denomM <- (log(zsl/z0)-psiM.f(zsl/L)+psiM.f(z0/L))^2
+    CD <- k^2/denomM  # CD is drag coefficient for momentum; Eq. (6.11) of de Arellano (2015)
+    ustar <- sqrt(CD)*Ur # update friction velocity [m/s]
+    ustar <- max(c(0.01,ustar)) #!!! impose minimum ustar to prevent numerical instabilities 
     if(abs(F0buoy) < 1e-6){
       # update Obukhov length [m]
       L <- Inf
