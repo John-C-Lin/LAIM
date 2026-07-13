@@ -5,12 +5,12 @@ require("deSolve")   #load deSolve package to access function "ode"
 
 #################################################
 # Flags to Turn On/Off Processes 
-atmrespondTF <- TRUE    # does atmosphere respond to surface fluxes?
-ABLTF <- TRUE           # does ABL grow or decay, according to surface heat fluxes?
-cloudTF <- TRUE         # does cloud cover change as function of atmospheric humidity?
-vegcontrolTF <- TRUE    # vegetation control?
-soilWTF <- TRUE         # turn on soil moisture feedbacks?
-co2budgetTF <- TRUE     # track atmospheric CO2, based on surface and entrainment fluxes? 
+atmrespondTF <- FALSE    # does atmosphere respond to surface fluxes?
+ABLTF <- FALSE           # does ABL grow or decay, according to surface heat fluxes?
+cloudTF <- FALSE         # does cloud cover change as function of atmospheric humidity?
+vegcontrolTF <- FALSE    # vegetation control?
+soilWTF <- FALSE         # turn on soil moisture feedbacks?
+co2budgetTF <- FALSE     # track atmospheric CO2, based on surface and entrainment fluxes? 
 if (!atmrespondTF & ABLTF) stop ("atmrespondTF needs to be TRUE to allow ABL to grow and decay")
 if (!vegcontrolTF & soilWTF) stop ("vegcontrolTF needs to be TRUE for soil moisture feedback to work")
 LWdnTF <- TRUE          # does LWdn respond dynamically?  
@@ -27,6 +27,18 @@ tmax <- t.day*24*3600  #maximum time [s]
 times <- seq(0,tmax,dt) #vector of time steps [s]
 DTtol <- 0.01      # tolerance for change in T when solving numerically (if T is within this range, then stop iterating) [oK]
 countTmax <- 1000  # max number of times to iterate T calculation
+#################################################
+
+#################################################
+# Physical constants
+Cp <- 1005.7;Cv <- 719 # heat capacities @ constant pressure & volume [J/kg/K] (Appendix 2 of Emanuel (1994)
+g <- 9.80665 # standard surface gravity [m/s2]
+Rd <- 287.04 # Ideal Gas Constant of DRY air [J/kg/K] (Appendix 2 of Emanuel (1994))
+Rv <- 461.40 # Ideal Gas Constant of water vapor [J/kg/K] (Appendix A.1.4 of Jacobson (1999)
+sigma <- 5.670373E-8    # Stefan-Boltzmann constant [W/m2/K4]
+Md <- 28.97  #molar mass of dry air [g/mole]
+rho.W <- 1000 # density of water [kg/m3]
+k <- 0.4  # von Karman constant
 #################################################
 
 #################################################
@@ -112,11 +124,14 @@ Resp25 <- 2        # respiration rate at 25-deg C [umole CO2/m2/s]
 # Cp.soil <- 1921          # specific heat of soil organic material [J/kg/K]
 # rho.soil <- 1300         # density of soil organic material [kg/m3]
 # Cs <- Cp.soil*rho.soil*D # heat capacity of organic soil [J/K/m2]
-# b) heat capacity based on vegetation
+# b) heat capacity based on canopy + canopy air 
 Hveg <- 10               # height of vegetation [m]
-rho.veg <- 100           # bulk density of above-ground vegetation [kg/m3]
+rho.veg <- 1.67          # bulk density of above-ground vegetation [kg/m3]; from Heidkamp et al. (2018): Geosci. Model Dev., 11, 3465–3479, https://doi.org/10.5194/gmd-11-3465-2018, 2018
 Cp.veg <- 3000           # bulk heat capacity of above-ground vegetation [J/kg/K];  Sect. 7.2 of Bonan (2019)
-Cs <- Cp.veg*(rho.veg)*Hveg  # heat capacity of vegetation [J/K/m2]
+Cs.veg <- Cp.veg*(rho.veg)*Hveg  # heat capacity of vegetation [J/K/m2]
+rho.air <- 1.2           # air density (at sea level) [kg/m3]
+Cs.air <- Cp*rho.air*Hveg
+Cs <- Cs.veg + Cs.air
 
 # soil parameters from Clapp & Hornberger (1978); taken from CLASS model (https://github.com/classmodel/modelgui/blob/master/landsoil.cpp)
 # select soil type from one of below
@@ -171,18 +186,6 @@ d1 <- 0.1           # soil depth to which diurnal variations in moisture penetra
 #################################################
 
 #################################################
-# Physical constants
-Cp <- 1005.7;Cv <- 719 # heat capacities @ constant pressure & volume [J/kg/K] (Appendix 2 of Emanuel (1994)
-g <- 9.80665 # standard surface gravity [m/s2]
-Rd <- 287.04 # Ideal Gas Constant of DRY air [J/kg/K] (Appendix 2 of Emanuel (1994))
-Rv <- 461.40 # Ideal Gas Constant of water vapor [J/kg/K] (Appendix A.1.4 of Jacobson (1999)
-sigma <- 5.670373E-8    # Stefan-Boltzmann constant [W/m2/K4]
-Md <- 28.97  #molar mass of dry air [g/mole]
-rho.W <- 1000 # density of water [kg/m3]
-k <- 0.4  # von Karman constant
-#################################################
-
-#################################################
 # ---------- External forcing ------------------#
 # Downward shortwave radiation
 t.hr<-0:24
@@ -198,7 +201,9 @@ SWdn_DAY <- SWdn
 # Downward longwave radiation (over-written with dynamically varying LWdn when LWdnTF set to TRUE)
 LWdn <- SWdn; LWdn[1:length(LWdn)] <- 300 # constant downward longwave radiation [W/m2]
 LWdn_DAY <- LWdn
+#################################################
 
+#################################################
 # -----------Atmospheric conditions----------#
 # Air temperature
 Ta.c<- -0.5*(t.hr-12)^2+30  # PRESCRIBED air temperature [deg-C]
@@ -223,13 +228,16 @@ Cair <- 400       # atmospheric CO2 concentration [umole/mole, or ppm]; this is 
 Cfree <- 400      # CO2 concentration [ppm] in free troposphere (not modified by values in ABL)
 Cabove <- Cfree   # CO2 concentration [ppm] above ABL (later modified by value in residual layer)
 albedo.cloud <- 0.5 # albedo of cloud
+#################################################
 
+#################################################
 # parameters determining CO2 greenhouse effect
 CO2.SENSITIVITY <- 3.7  # CO2 doubling sensitivity [W/m2 per doubling of CO2] (IPCC 2007; Myhre et al. 1998)
 CO2.baseline <- 280     # baseline to determine doubling (pre-industrial CO2 concentration [ppm])
 # ave CO2 in atmospheric column, using scale height as weighting (i.e., density follows exponential decay)
 CO2.colave <- Cair + (Cfree - Cair)*exp(-hmin/Hscale)           
 GHG.FORCE <- CO2.SENSITIVITY*log(CO2.colave/CO2.baseline)/log(2) # GHG forcing--from CO2 elevated above CO2base.ppm [W/m2]
+#################################################
 
 #################################################
 # prescribe ABL depth or CO2 fluxes
@@ -332,7 +340,7 @@ zsl <- 0.1*hini  # surface layer height [m] assumed to be 10% of ABL height
 Tinit <- uniroot(f,interval=xinterv,Ta=Ta.c[1]+273.15,SWdn=SWdn[1],LWdn=LWdn[1],Tsoil1=Tsoil1,albedo.cloud=albedo.cloud,
                  albedo.surf=albedo.surf,epsilon.s=epsilon.s,Ur=Ur,zsl=zsl,z0=z0,gvmax=gvmax,RH=RH,Psurf=Psurf,Hscale=Hscale,GHG.FORCE=GHG.FORCE)$root
 imbalance <- f(T=Tinit,Ta=Ta.c[1]+273.15,SWdn=SWdn[1],LWdn=LWdn[1],Tsoil1=Tsoil1,albedo.cloud=albedo.cloud,
-         albedo.surf=albedo.surf,epsilon.s=epsilon.s,Ur=Ur,zsl=zsl,z0=z0,gvmax=gvmax,RH=RH,Psurf=Psurf,Hscale=Hscale,GHG.FORCE=GHG.FORCE)
+               albedo.surf=albedo.surf,epsilon.s=epsilon.s,Ur=Ur,zsl=zsl,z0=z0,gvmax=gvmax,RH=RH,Psurf=Psurf,Hscale=Hscale,GHG.FORCE=GHG.FORCE)
 print(paste("Tinit [oC]:",signif(Tinit-273.15,5),";   (Rn-H-LE-G) =",signif(imbalance,4),"[W/m2]"))
 
 #############################################################################################################
@@ -420,85 +428,75 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
     
     # determine net radiation
     Rn <- SWdn.t-SWup+LWdn.t-LWup
-  
+    
     zsl <- 0.1*h  # surface layer height [m] assumed to be 10% of ABL height
     
-    countT <- 0; iterateT <- TRUE
-    while (iterateT) {   #iterate until convergence
-      countT <- countT + 1
-      if(countT > countTmax)stop("T does not converge")
-      
-      if (!atmrespondTF) {
-        Ta <- approx(x=as.numeric(names(Ta.c_DAY))*3600,y=Ta.c_DAY,xout=time%%(24*3600))$y+273.15  #use prescribed value
-        qa <- qa.presc
-      } # if(atmrespondTF){
-      
-      L <- zsl/zeta
+    if (!atmrespondTF) {
+      Ta <- approx(x=as.numeric(names(Ta.c_DAY))*3600,y=Ta.c_DAY,xout=time%%(24*3600))$y+273.15  #use prescribed value
+      qa <- qa.presc
+    } # if(atmrespondTF){
     
-      # determine sensible heat flux
-      rho.surf <- Psurf*100/(Rd*T)   # surface air density [kg/m3]
-      raero <- raero.f(z0=z0,Ur=Ur,zsl=zsl,L=L) 
-      H <- (Cp*rho.surf/(raero))*(T-Ta)   # [W/m2]
-      wthetav <- H/(Cp*rho.surf)     # w'thetav' [K/m/s]
-      F0buoy <- g*wthetav/thetavM     # surface buoyancy flux [m2/s3]
-      
-      CM <- k^2/(log(zsl/z0)-psiM.f(zsl/L)+psiM.f(z0/L)) # CM is drag coefficient for momentum
-      ustar <- sqrt(CM)*Ur # update friction velocity [m/s]
-      L <- -1*ustar^3/(k*F0buoy)     # update Obukhov length [m]
+    L <- zsl/zeta
     
-      # determine latent heat flux
-      beta.W <- 1   # water stress parameter (dependent on soil moisture)
-      Lv <- 1000*latentheat(T-273.15)  # latent heat of vaporization [J/kg]
-      esat <- satvap(T-273.15)/100     # saturation vapor pressure [hPa]
-      e <- qa*Psurf/(Rd/Rv)            # vapor pressure [hPa]
-      VPD <- 100*(esat-e)              # vapor pressure deficit [Pa]
-      qsat <- (Rd/Rv)*esat/Psurf       # saturation specific humidity [g/g]
-      if (vegcontrolTF) {
-        if (soilWTF) {
-          # Eq. (12.56) of Bonan (2019)
-          beta.W <- (Wsoil1 - Wwilt)/(Wfc - Wwilt)
-          if (Wsoil1 >= Wfc) beta.W <- 1.0
-          if (Wsoil1 <= Wwilt) beta.W <- 0
-        } # if (soilWTF)
-        # Ball-Berry + Farquhar coupled stomatal conductance & photosynthesis model for vegetation resistance [s/m]
-        hs <- e/esat  # fractional humidity (=1/RH) at leaf surface [.]   
-        if(hs<0.7) hs <- hs + 0.3   #!!! quick adjustment that ensures leaf surface is not too dry...accounts for higher humidity within canopy  !!!#
-        cs <- CO2    # CO2 concentration at leaf surface [umole/mole]
-        BBFout <- BBF(SW=SWdn.t,Tleaf.C=T-273.15,hs=hs,beta.W=beta.W,cs=cs,Psurf=Psurf)  
-        gsv <- BBFout["gsv"]  # stomatal conductance with respect to water vapor [mole H2O/m2/s]  
-        rho.mole <- rho.surf*1000/Md # air density [kg/m3] => molar density [moles/m3]
-        gsv <- gsv/rho.mole   # [mole/m2/s] => [m/s]
-        rveg <- 1/gsv         # vegetation resistance [s/m]
-        An <- BBFout["An"]    # Net photosynthesis [umole/m2/s]
-        ci <- BBFout["ci"]    # intercellular CO2 [umole/mole]
-      } else {
-        rveg <- 1/gvmax
-        An <- NA; ci <- NA
-      } # if(vegcontrolTF){
-      
-      # scale up photosynthesis and stomatal conductance to CANOPY values using Big-Leaf Model, based on Eq. (15.5) of Bonan (2019)
-      scale.canopy<-(1-exp(-Kb*LAI))/Kb
-      An <- An*scale.canopy
-      gv <- (1/rveg)*scale.canopy
-      rveg <- 1/gv
-      LE <- (Lv*rho.surf/(raero+rveg))*(qsat-qa) #[W/m2]
-      if(LE<0) LE <- 0
-      
-      # determine respirational flux of CO2 to atmosphere
-      Resp <- Resp25*(Q10^((T-298.15)/10))  # respiration flux based on Q10 formulation [umole CO2/m2/s]
-      
-      # determine ground heat flux 
-      # use two-layer (force-restore) soil model to calculate ground heat flux and soil moisture
-      G <- Lambda * (T - Tsoil1)
-      
-      Storage <- Rn - LE - H - G
-      # update temperature 
-      DT <- (Storage/Cs)*dt
-      T <- T+DT
-      #print(paste("iterating so that T converges:",countT,paste("T =",signif(T,5)),signif(DT,4)))
-      iterateT <- abs(DT)>DTtol   # continue iterating until T converges
-    } # while (iterateT) {   #iterate until converge
+    # determine sensible heat flux
+    rho.surf <- Psurf*100/(Rd*T)   # surface air density [kg/m3]
+    raero <- raero.f(z0=z0,Ur=Ur,zsl=zsl,L=L) 
+    H <- (Cp*rho.surf/(raero))*(T-Ta)   # [W/m2]
+    wthetav <- H/(Cp*rho.surf)     # w'thetav' [K/m/s]
+    F0buoy <- g*wthetav/thetavM     # surface buoyancy flux [m2/s3]
     
+    CM <- k^2/(log(zsl/z0)-psiM.f(zsl/L)+psiM.f(z0/L)) # CM is drag coefficient for momentum
+    ustar <- sqrt(CM)*Ur # update friction velocity [m/s]
+    L <- -1*ustar^3/(k*F0buoy)     # update Obukhov length [m]
+    
+    # determine latent heat flux
+    beta.W <- 1   # water stress parameter (dependent on soil moisture)
+    Lv <- 1000*latentheat(T-273.15)  # latent heat of vaporization [J/kg]
+    esat <- satvap(T-273.15)/100     # saturation vapor pressure [hPa]
+    e <- qa*Psurf/(Rd/Rv)            # vapor pressure [hPa]
+    VPD <- 100*(esat-e)              # vapor pressure deficit [Pa]
+    qsat <- (Rd/Rv)*esat/Psurf       # saturation specific humidity [g/g]
+    if (vegcontrolTF) {
+      if (soilWTF) {
+        # Eq. (12.56) of Bonan (2019)
+        beta.W <- (Wsoil1 - Wwilt)/(Wfc - Wwilt)
+        if (Wsoil1 >= Wfc) beta.W <- 1.0
+        if (Wsoil1 <= Wwilt) beta.W <- 0
+      } # if (soilWTF)
+      # Ball-Berry + Farquhar coupled stomatal conductance & photosynthesis model for vegetation resistance [s/m]
+      hs <- e/esat  # fractional humidity (=1/RH) at leaf surface [.]   
+      if(hs<0.7) hs <- hs + 0.3   #!!! quick adjustment that ensures leaf surface is not too dry...accounts for higher humidity within canopy  !!!#
+      cs <- CO2    # CO2 concentration at leaf surface [umole/mole]
+      BBFout <- BBF(SW=SWdn.t,Tleaf.C=T-273.15,hs=hs,beta.W=beta.W,cs=cs,Psurf=Psurf)  
+      gsv <- BBFout["gsv"]  # stomatal conductance with respect to water vapor [mole H2O/m2/s]  
+      rho.mole <- rho.surf*1000/Md # air density [kg/m3] => molar density [moles/m3]
+      gsv <- gsv/rho.mole   # [mole/m2/s] => [m/s]
+      rveg <- 1/gsv         # vegetation resistance [s/m]
+      An <- BBFout["An"]    # Net photosynthesis [umole/m2/s]
+      ci <- BBFout["ci"]    # intercellular CO2 [umole/mole]
+    } else {
+      rveg <- 1/gvmax
+      An <- NA; ci <- NA
+    } # if(vegcontrolTF){
+    
+    # scale up photosynthesis and stomatal conductance to CANOPY values using Big-Leaf Model, based on Eq. (15.5) of Bonan (2019)
+    scale.canopy<-(1-exp(-Kb*LAI))/Kb
+    An <- An*scale.canopy
+    gv <- (1/rveg)*scale.canopy
+    rveg <- 1/gv
+    LE <- (Lv*rho.surf/(raero+rveg))*(qsat-qa) #[W/m2]
+    if(LE<0) LE <- 0
+    
+    # determine respirational flux of CO2 to atmosphere
+    Resp <- Resp25*(Q10^((T-298.15)/10))  # respiration flux based on Q10 formulation [umole CO2/m2/s]
+    
+    # determine ground heat flux 
+    # use two-layer (force-restore) soil model to calculate ground heat flux and soil moisture
+    G <- Lambda * (T - Tsoil1)
+    
+    Storage <- Rn - LE - H - G
+    
+    dT.dt <- Storage/Cs  # rate of change of T, making use of bulk heat capacity [K/s]
     
     # heat transport between surface and deep soil layer to update Tsoil1 from CLASS model (https://github.com/classmodel/modelgui/blob/master/model.cpp)
     rTsoil <- rTsoil.sat * (Wsat/Wsoil2)^(bb/(2*log(10)))
@@ -533,7 +531,8 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
         Fhthetav <- -1*Beta*F0thetav   # closure hypothesis (Eq. 6.15 of Garratt [1992])
         # calculate ABL growth rate [m/s]
         dh.dt<-(1+2*Beta)*F0thetav/(rho.surf*gamma*h)  # Eq. (6.18) of Garratt [1992]
-        if (F0thetav<=0.00){dh.dt <- (hmin - h)/dt;Fhthetav <- 0} # override value:  ABL collapses
+        if (F0thetav<=0.00){dh.dt <- (hmin - h)/dt;Fhthetav <- 0}   # override value:  ABL collapses
+        #if (F0thetav<=0.00)print(paste(time,signif(F0thetav,5),signif(h,5),signif(dh.dt,5)))
       } else {
         STEP <- 3600  # time stamp in prescribed object [s]--default is hourly
         if(max(as.numeric(names(ABLdepth_DAY)))>86000) STEP <- 1  # time stamp is in [s]
@@ -588,7 +587,7 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
     
     
     # derivatives of variables--need to be returned as part of call to 'ode'
-    DT <- DT
+    DT <- dT.dt
     DTa <- dthetavM.dt/(1+0.61*qa)
     Dqa <- dq.dt
     DthetavM <- dthetavM.dt
@@ -597,7 +596,7 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
     Dh <- dh.dt
     DCO2 <- dC.dt
     Dzeta <- ((zsl/L) - zeta.old)/dt
-  
+    
     #variables that aren't integrated with time and aren't returned as derivatives
     vars2 <- c(SWdn=SWdn.t,LWdn=LWdn.t,GHG.FORCE=GHG.FORCE,Rn=as.numeric(Rn),LWup=as.numeric(LWup),H=as.numeric(H),LE=as.numeric(LE),G=as.numeric(G),
                RH=as.numeric(RH),RH.h=as.numeric(RH.h),cloud=as.numeric(cloud),albedo=as.numeric(albedo),qsat=as.numeric(qsat),
