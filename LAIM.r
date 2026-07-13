@@ -124,11 +124,14 @@ Resp25 <- 2        # respiration rate at 25-deg C [umole CO2/m2/s]
 # Cp.soil <- 1921          # specific heat of soil organic material [J/kg/K]
 # rho.soil <- 1300         # density of soil organic material [kg/m3]
 # Cs <- Cp.soil*rho.soil*D # heat capacity of organic soil [J/K/m2]
-# b) heat capacity based on vegetation 
+# b) heat capacity based on canopy + canopy air 
 Hveg <- 10               # height of vegetation [m]
-rho.veg <- 100           # bulk density of above-ground vegetation [kg/m3]
+rho.veg <- 1.67          # bulk density of above-ground vegetation [kg/m3]; from Heidkamp et al. (2018): Geosci. Model Dev., 11, 3465–3479, https://doi.org/10.5194/gmd-11-3465-2018, 2018
 Cp.veg <- 3000           # bulk heat capacity of above-ground vegetation [J/kg/K];  Sect. 7.2 of Bonan (2019)
-Cs <- Cp.veg*(rho.veg)*Hveg  # heat capacity of vegetation [J/K/m2]
+Cs.veg <- Cp.veg*(rho.veg)*Hveg  # heat capacity of vegetation [J/K/m2]
+rho.air <- 1.2           # air density (at sea level) [kg/m3]
+Cs.air <- Cp*rho.air*Hveg
+Cs <- Cs.veg + Cs.air
 
 # soil parameters from Clapp & Hornberger (1978); taken from CLASS model (https://github.com/classmodel/modelgui/blob/master/landsoil.cpp)
 # select soil type from one of below
