@@ -615,7 +615,15 @@ if(atmrespondTF&ABLTF&t.day>1){
   result <- NULL
   for(t.dd in 1:(ceiling(max((times)/(3600*24))))){
     print(paste("TIME INTEGRATION: DAY",t.dd))
-    sel <- times>=(3600*24*(t.dd-1))&times<(3600*24*(t.dd))  #!!! still potentially missing last time step on last day !!!
+    day.start <- 3600*24*(t.dd - 1)
+    day.end   <- 3600*24*t.dd
+    
+    if (t.dd < ceiling(max(times)/(3600*24))) {
+      sel <- times >= day.start & times < day.end
+    } else {
+      sel <- times >= day.start & times <= day.end
+    } # if (t.dd < ceiling(max(times)/(3600*24))) {
+    
     times.sub <- times[sel]
     # multiple calls to "ode", each time by 1 day, to allow for entrainment of residual layer
     if(t.dd>1){
