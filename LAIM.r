@@ -392,6 +392,12 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
   if(((time/3600)%%1)==0) print(paste("Running model: time=",time/3600,"[hr]"))
   with(as.list(c(state,parms)),{
     zeta.old <- zeta
+  
+    if (!atmrespondTF) {
+      Ta <- approx(x=as.numeric(names(Ta.c_DAY))*3600,y=Ta.c_DAY,xout=time%%(24*3600))$y+273.15  #use prescribed value
+      qa <- qa.presc
+    } # if(atmrespondTF){
+    
     # calculate RH at ABLtop and near ground surface
     e <- qa*Psurf/(Rd/Rv)      # vapor pressure [hPa]
     RH <- e/(satvap(Ta - 273.15)/100)
@@ -431,11 +437,6 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
     Rn <- SWdn.t-SWup+LWdn.t-LWup
     
     zsl <- 0.1*h  # surface layer height [m] assumed to be 10% of ABL height
-    
-    if (!atmrespondTF) {
-      Ta <- approx(x=as.numeric(names(Ta.c_DAY))*3600,y=Ta.c_DAY,xout=time%%(24*3600))$y+273.15  #use prescribed value
-      qa <- qa.presc
-    } # if(atmrespondTF){
     
     L <- zsl/zeta
     
