@@ -243,6 +243,7 @@ GHG.FORCE <- CO2.SENSITIVITY*log(CO2.colave/CO2.baseline)/log(2) # GHG forcing--
 #################################################
 # prescribe ABL depth or CO2 fluxes
 hini <- hmin  # initial ABL depth [m]
+ABLdepth_DAY <- NULL
 if(!ABLTF){
   print("Prescribing ABL depth...")
   # NOTE:  ABL depth needs to be prescribed with either hourly or 1-sec timestep
@@ -251,6 +252,7 @@ if(!ABLTF){
   hini <- ABLdepth_DAY[1]
 } # if(!ABLTF){
 
+CO2flux.veg_DAY <- NULL
 if(co2fluxprescTF){
   print("Prescribing CO2 flux...")
   # NOTE:  CO2 flux needs to be prescribed with either hourly or 1-sec timestep
@@ -377,7 +379,7 @@ parms <- c(parms,Wsat=Wsat,Wfc=Wfc,Wwilt=Wwilt,aa=aa,bb=bb,pp=pp,rTsoil.sat=rTso
 
 ########################################################
 # define LAIM model function (what happens each time step)
-LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
+LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY,ABLdepth_DAY=NULL,CO2flux.veg_DAY=NULL) {
   #------------------#
   # Physical constants
   Cp <- 1005.7;Cv <- 719 # specific heat capacities of dry air @ constant pressure & volume [J/kg/K] 
@@ -390,10 +392,14 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
   k <- 0.4  # von Karman constant
   #------------------#
   
+  if (atmrespondTF & !ABLTF & is.null(ABLdepth_DAY)) {
+    stop("ABLdepth_DAY must be supplied when atmrespondTF = TRUE and ABLTF = FALSE")
+  } # if (atmrespondTF & !ABLTF & is.null(ABLdepth_DAY)) {
+  
   if(((time/3600)%%1)==0) print(paste("Running model: time=",time/3600,"[hr]"))
   with(as.list(c(state,parms)),{
     zeta.old <- zeta
-  
+    
     if (!atmrespondTF) {
       Ta <- approx(x=as.numeric(names(Ta.c_DAY))*3600,y=Ta.c_DAY,xout=time%%(24*3600))$y+273.15  #use prescribed value
       qa <- qa.presc
@@ -614,7 +620,7 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
                ustar=as.numeric(ustar),L=as.numeric(L))
     return(list(c(DT,DTa,Dqa,DthetavM,DTsoil1,DWsoil1,Dh,DCO2,Dzeta),vars2))
   })
-} # LAIM <-function(time,state,parms,SWdn_TIME,Ta_TIME){
+} # LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY,ABLdepth_DAY=NULL,CO2flux.veg_DAY=NULL) {
 
 
 ########################################################
@@ -623,49 +629,51 @@ if(atmrespondTF&ABLTF&t.day>1){
   print(paste("==========Multiple calls to ode:=========="))
   result <- NULL
   
-for (t.dd in seq_len(ceiling(max(times) / (3600 * 24)))) {
-  print(paste("TIME INTEGRATION: DAY",t.dd))
-  day.start <- 3600 * 24 * (t.dd - 1)
-  day.end <- min(3600 * 24 * t.dd, max(times))
-  times.sub <- times[times >= day.start & times <= day.end]
-
-  if (t.dd > 1) {
-    ilast <- nrow(result.tmp)
-    #  find qa in ABL just before the ABL collapses, and use it as the humidity in residual layer that would be entrained into ABL following day
-    imax <- tail(which(result.tmp$h == max(result.tmp$h, na.rm = TRUE)), 1)
-    qa.resid <- result.tmp$qa[imax]
-    print(paste("specific humidity of residual layer [g/g]:",signif(qa.resid,5)))
-    parms["qabove"] <- qa.resid   # assign residual layer humidity as humdity above ABL
-    #  find [CO2] in ABL just before the ABL collapses, and use it as the [CO2] in residual layer that would be entrained into ABL following day
-    Cair.resid <- result.tmp$CO2[imax]
-    print(paste("CO2 of residual layer [ppm]:",signif(Cair.resid,5)))
-    parms["Cabove"] <- Cair.resid   # assign residual layer [CO2] as [CO2] above ABL
-    yini <- c(
-      T = result.tmp$T[ilast],
-      Ta = result.tmp$Ta[ilast],
-      qa = result.tmp$qa[ilast],
-      thetavM = result.tmp$thetavM[ilast],
-      Tsoil1 = result.tmp$Tsoil1[ilast],
-      Wsoil1 = result.tmp$Wsoil1[ilast],
-      h = result.tmp$h[ilast],
-      CO2 = result.tmp$CO2[ilast],
-      zeta = result.tmp$zeta[ilast]
+  for (t.dd in seq_len(ceiling(max(times) / (3600 * 24)))) {
+    print(paste("TIME INTEGRATION: DAY",t.dd))
+    day.start <- 3600 * 24 * (t.dd - 1)
+    day.end <- min(3600 * 24 * t.dd, max(times))
+    times.sub <- times[times >= day.start & times <= day.end]
+    
+    if (t.dd > 1) {
+      ilast <- nrow(result.tmp)
+      #  find qa in ABL just before the ABL collapses, and use it as the humidity in residual layer that would be entrained into ABL following day
+      imax <- tail(which(result.tmp$h == max(result.tmp$h, na.rm = TRUE)), 1)
+      qa.resid <- result.tmp$qa[imax]
+      print(paste("specific humidity of residual layer [g/g]:",signif(qa.resid,5)))
+      parms["qabove"] <- qa.resid   # assign residual layer humidity as humdity above ABL
+      #  find [CO2] in ABL just before the ABL collapses, and use it as the [CO2] in residual layer that would be entrained into ABL following day
+      Cair.resid <- result.tmp$CO2[imax]
+      print(paste("CO2 of residual layer [ppm]:",signif(Cair.resid,5)))
+      parms["Cabove"] <- Cair.resid   # assign residual layer [CO2] as [CO2] above ABL
+      yini <- c(
+        T = result.tmp$T[ilast],
+        Ta = result.tmp$Ta[ilast],
+        qa = result.tmp$qa[ilast],
+        thetavM = result.tmp$thetavM[ilast],
+        Tsoil1 = result.tmp$Tsoil1[ilast],
+        Wsoil1 = result.tmp$Wsoil1[ilast],
+        h = result.tmp$h[ilast],
+        CO2 = result.tmp$CO2[ilast],
+        zeta = result.tmp$zeta[ilast]
+      )
+    } #   if (t.dd > 1) {
+    
+    result.tmp <- data.frame(
+      ode(yini, times.sub, LAIM, parms,
+          SWdn_DAY=SWdn_DAY, LWdn_DAY=LWdn_DAY, Ta.c_DAY=Ta.c_DAY,
+          ABLdepth_DAY=ABLdepth_DAY, CO2flux.veg_DAY=CO2flux.veg_DAY,
+          method = "rk4")
     )
-  } #   if (t.dd > 1) {
-
-  result.tmp <- data.frame(
-    ode(yini, times.sub, LAIM, parms,
-        SWdn_DAY = SWdn_DAY, LWdn_DAY = LWdn_DAY, Ta.c_DAY = Ta.c_DAY,
-        method = "rk4")
-  )
-
-  result <- if (is.null(result)) result.tmp else rbind(result, result.tmp[-1, ])
-} # for (t.dd in seq_len(ceiling(max(times) / (3600 * 24)))) {
+    
+    result <- if (is.null(result)) result.tmp else rbind(result, result.tmp[-1, ])
+  } # for (t.dd in seq_len(ceiling(max(times) / (3600 * 24)))) {
   filenm <- "result.csv"; write.csv(result,file=filenm)
   print(paste(filenm,"written out"))
 } else {
   # single call "ode" to integrate LAIM model in time
-  result <- ode(yini, times, LAIM, parms, SWdn_DAY=SWdn_DAY, LWdn_DAY=LWdn_DAY,Ta.c_DAY=Ta.c_DAY, method = "rk4")
+  result <- ode(yini, times, LAIM, parms, SWdn_DAY=SWdn_DAY, LWdn_DAY=LWdn_DAY,Ta.c_DAY=Ta.c_DAY, 
+                ABLdepth_DAY=ABLdepth_DAY, CO2flux.veg_DAY=CO2flux.veg_DAY, method = "rk4")
   result <- data.frame(result)
   filenm <- "result.csv"; write.csv(result,file=filenm)
   print(paste(filenm,"written out"))
