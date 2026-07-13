@@ -13,6 +13,7 @@ soilWTF <- FALSE         # turn on soil moisture feedbacks?
 co2budgetTF <- FALSE     # track atmospheric CO2, based on surface and entrainment fluxes? 
 if (!atmrespondTF & ABLTF) stop ("atmrespondTF needs to be TRUE to allow ABL to grow and decay")
 if (!vegcontrolTF & soilWTF) stop ("vegcontrolTF needs to be TRUE for soil moisture feedback to work")
+if (co2budgetTF & !atmrespondTF) stop("for co2budgetTF to be TRUE, also requires atmrespondTF to be TRUE")
 LWdnTF <- TRUE          # does LWdn respond dynamically?  
 co2fluxprescTF <- FALSE # is CO2 flux (& ABL) prescribed, rather than simulated internally?
 if (!co2budgetTF & co2fluxprescTF) stop ("co2budgetTF needs to be TRUE to prescribe CO2 flux")
