@@ -621,38 +621,45 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY){
 if(atmrespondTF&ABLTF&t.day>1){
   print(paste("==========Multiple calls to ode:=========="))
   result <- NULL
-  for(t.dd in 1:(ceiling(max((times)/(3600*24))))){
-    print(paste("TIME INTEGRATION: DAY",t.dd))
-    day.start <- 3600*24*(t.dd - 1)
-    day.end   <- 3600*24*t.dd
-    
-    if (t.dd < ceiling(max(times)/(3600*24))) {
-      sel <- times >= day.start & times < day.end
-    } else {
-      sel <- times >= day.start & times <= day.end
-    } # if (t.dd < ceiling(max(times)/(3600*24))) {
-    
-    times.sub <- times[sel]
-    # multiple calls to "ode", each time by 1 day, to allow for entrainment of residual layer
-    if(t.dd>1){
-      ilast <- nrow(result.tmp)
-      #  find qa in ABL just before the ABL collapses, and use it as the humidity in residual layer that would be entrained into ABL following day
-      imax <- tail(which(result.tmp$h == max(result.tmp$h, na.rm = TRUE)), 1)
-      qa.resid <- result.tmp$qa[imax]
-      print(paste("specific humidity of residual layer [g/g]:",signif(qa.resid,5)))
-      parms["qabove"] <- qa.resid   # assign residual layer humidity as humdity above ABL
-      #  find [CO2] in ABL just before the ABL collapses, and use it as the [CO2] in residual layer that would be entrained into ABL following day
-      Cair.resid <- result.tmp$CO2[imax]
-      print(paste("CO2 of residual layer [ppm]:",signif(Cair.resid,5)))
-      parms["Cabove"] <- Cair.resid   # assign residual layer [CO2] as [CO2] above ABL
-      yini <- c(T=result.tmp$T[ilast], Ta=result.tmp$Ta[ilast], qa=result.tmp$qa[ilast], thetavM=result.tmp$thetavM[ilast],
-                Tsoil1=result.tmp$Tsoil1[ilast], Wsoil1=result.tmp$Wsoil1[ilast], h=result.tmp$h[ilast], CO2=result.tmp$CO2[ilast],zeta=result.tmp$zeta[ilast])
-      names(yini) <- c("T","Ta","qa","thetavM","Tsoil1","Wsoil1","h","CO2","zeta")
-    } # if(t.dd>1){
-    result.tmp <- ode(yini, times.sub, LAIM, parms, SWdn_DAY=SWdn_DAY, LWdn_DAY=LWdn_DAY,Ta.c_DAY=Ta.c_DAY, method = "rk4")
-    result.tmp <- data.frame(result.tmp)
-    result <- rbind(result,result.tmp)
-  } # for(t.dd in 1:(t.day+1)){
+  
+for (t.dd in seq_len(ceiling(max(times) / (3600 * 24)))) {
+  print(paste("TIME INTEGRATION: DAY",t.dd))
+  day.start <- 3600 * 24 * (t.dd - 1)
+  day.end <- min(3600 * 24 * t.dd, max(times))
+  times.sub <- times[times >= day.start & times <= day.end]
+
+  if (t.dd > 1) {
+    ilast <- nrow(result.tmp)
+    #  find qa in ABL just before the ABL collapses, and use it as the humidity in residual layer that would be entrained into ABL following day
+    imax <- tail(which(result.tmp$h == max(result.tmp$h, na.rm = TRUE)), 1)
+    qa.resid <- result.tmp$qa[imax]
+    print(paste("specific humidity of residual layer [g/g]:",signif(qa.resid,5)))
+    parms["qabove"] <- qa.resid   # assign residual layer humidity as humdity above ABL
+    #  find [CO2] in ABL just before the ABL collapses, and use it as the [CO2] in residual layer that would be entrained into ABL following day
+    Cair.resid <- result.tmp$CO2[imax]
+    print(paste("CO2 of residual layer [ppm]:",signif(Cair.resid,5)))
+    parms["Cabove"] <- Cair.resid   # assign residual layer [CO2] as [CO2] above ABL
+    yini <- c(
+      T = result.tmp$T[ilast],
+      Ta = result.tmp$Ta[ilast],
+      qa = result.tmp$qa[ilast],
+      thetavM = result.tmp$thetavM[ilast],
+      Tsoil1 = result.tmp$Tsoil1[ilast],
+      Wsoil1 = result.tmp$Wsoil1[ilast],
+      h = result.tmp$h[ilast],
+      CO2 = result.tmp$CO2[ilast],
+      zeta = result.tmp$zeta[ilast]
+    )
+  } #   if (t.dd > 1) {
+
+  result.tmp <- data.frame(
+    ode(yini, times.sub, LAIM, parms,
+        SWdn_DAY = SWdn_DAY, LWdn_DAY = LWdn_DAY, Ta.c_DAY = Ta.c_DAY,
+        method = "rk4")
+  )
+
+  result <- if (is.null(result)) result.tmp else rbind(result, result.tmp[-1, ])
+} # for (t.dd in seq_len(ceiling(max(times) / (3600 * 24)))) {
   filenm <- "result.csv"; write.csv(result,file=filenm)
   print(paste(filenm,"written out"))
 } else {
