@@ -22,7 +22,7 @@ if (!co2fluxprescTF) {if (!vegcontrolTF & co2budgetTF) stop ("vegcontrolTF needs
 
 #################################################
 # Model timestep and duration
-dt <- 20           # model timestep [s]
+dt <- 60           # model timestep [s]
 t.day <- 3         # run time in days
 tmax <- t.day*24*3600  #maximum time [s]
 times <- seq(0,tmax,dt) #vector of time steps [s]
@@ -1082,7 +1082,7 @@ if (soilWTF) {
        cex.axis=1.3,cex.lab=1.3,lwd=2,main=paste("Soil type =",soiltype,"\n",xmain),col="black",ylim=c(Wwilt,Wfc))
   mtext(text=expression(paste("Soil Volumetric Water Content [",m^3,"/",m^3,"]",sep="")),line=2,cex=1.3,side=2)
   abline(h=Wsoil2,lty=3,lwd=2)
-  legend(x="bottomright",c("Wsoil1","Wsoil2"),col=c("black","black"),lwd=2,lty=c(1,3))
+  legend(x="topright",c("Wsoil1","Wsoil2"),col=c("black","black"),lwd=2,lty=c(1,3))
   dev.copy(png,"Wsoil.png");dev.off();print("Wsoil.png written out")
 } #if (soilWTF)
 
