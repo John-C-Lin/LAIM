@@ -26,7 +26,6 @@ dt <- 20           # model timestep [s]
 t.day <- 3         # run time in days
 tmax <- t.day*24*3600  #maximum time [s]
 times <- seq(0,tmax,dt) #vector of time steps [s]
-DTtol <- 0.01      # tolerance for change in T when solving numerically (if T is within this range, then stop iterating) [oK]
 countTmax <- 1000  # max number of times to iterate T calculation
 #################################################
 
@@ -43,7 +42,7 @@ k <- 0.4  # von Karman constant
 #################################################
 
 #################################################
-# Load in functions
+# Load in basic functions
 if(vegcontrolTF){ 
   if(!file.exists("Ball_Berry_Farquhar.r"))stop(paste("Can not find 'Ball_Berry_Farquhar.r' in working directory:",getwd()))
   source("Ball_Berry_Farquhar.r")  #load Ball-Berry + Farquhar coupled stomatal conductance & photosynthesis model  
@@ -67,46 +66,9 @@ satvap <- function(T.c){
   saturated <- 611*exp((Lv/461)*((1/273.15)-(1/kelvin)))
   return(saturated)
 } #satvap<-function(T.c){
-
-# stability functions for momentum, based on CLASS model (https://github.com/classmodel/modelgui/blob/master/model.cpp)
-psiM.f <- function(zeta){
-  if(zeta <= 0){
-    #unstable conditions:  from Paulson (1970) "The Mathematical Representation of Wind Speed and Temperature Profiles in the Unstable Atmospheric Surface Layer"
-    x <- (1 - 16*(zeta))^0.25
-    psiM <- pi/2 - 2*atan(x) + log(((1+x)^2)*(1+x^2) /8)
-  } else {
-    #stable conditions: from Beljaars & Holtslag (1991) “Flux Parameterization over Land Surfaces for Atmospheric Models”
-    psiM <- (-2/3)*(zeta - 5/0.35)*exp(-0.35*zeta) - zeta - (10/3)/0.35
-  } 
-  return(psiM)
-} # psiM.f <- function(zeta){
-# stability functions for heat, based on CLASS model (https://github.com/classmodel/modelgui/blob/master/model.cpp)
-psiH.f <- function(zeta){
-  if(zeta <= 0){
-    #unstable conditions:  from Paulson (1970) "The Mathematical Representation of Wind Speed and Temperature Profiles in the Unstable Atmospheric Surface Layer"
-    x <- (1 - 16*(zeta))^0.25
-    psiH <- 2*log((1+x^2)/2)
-  } else {
-    #stable conditions: from Beljaars & Holtslag (1991) “Flux Parameterization over Land Surfaces for Atmospheric Models”
-    psiH <- -2/3 * (zeta - 5/0.35) * exp(-0.35 * zeta) -
-      (1 + (2/3) * zeta)^1.5 - (10/3) / 0.35 + 1
-  } 
-  return(psiH)
-} # psiH.f <- function(zeta){
-
-raero.f <- function(z0,Ur,zsl,L){
-  #arguments:  Ur is reference windspeed [m/s] at top of surface layer zsl
-  #            zsl is height of surface layer [m]
-  #            z0 is roughness length for momentum [m]; 0.01m is typical value for crop
-  #            L is Obukhov length [m]; can be <0 (unstable), = Inf (neutral), or >0 (stable)
-  k <- 0.4  # von Karman constant
-  z0H <- z0*exp(-2.5) # roughness length for heat; from Garratt, J.R. (1978) Transfer characteristics for a heterogeneous surface of large aerodynamic roughness.  Quart. J. Roy. Met. Soc. 104, 491-50
-  # CH is drag coefficient for heat (also relevant for other scalars like H2O & CO2)
-  CH <- k^2/((log(zsl/z0)-psiM.f(zsl/L)+psiM.f(z0/L))*(log(zsl/z0H)-psiH.f(zsl/L)+psiH.f(z0H/L))) # Eq. (9.23) of de Arellano (2015)
-  raero <- 1/(CH*Ur)              # aerodynamic resistance [s/m]
-  return(raero)
-} #raero.f<-function(){
 #################################################
+
+
 
 #################################################
 # Land surface characteristics
@@ -260,91 +222,449 @@ if(co2fluxprescTF){
   CO2flux.veg_DAY[1:length(CO2flux.veg_DAY)] <- 5      # prescribe daily cycle of CO2 flux [umole/m2/s]
 } # if(co2fluxprescTF){
 
+
+#################################################
+# Load in functions required for Monin-Obukhov stability calculations
+
+# stability functions for momentum, based on CLASS model (https://github.com/classmodel/modelgui/blob/master/model.cpp)
+psiM.f <- function(zeta){
+  if(zeta <= 0){
+    #unstable conditions:  from Paulson (1970) "The Mathematical Representation of Wind Speed and Temperature Profiles in the Unstable Atmospheric Surface Layer"
+    x <- (1 - 16*(zeta))^0.25
+    psiM <- pi/2 - 2*atan(x) + log(((1+x)^2)*(1+x^2) /8)
+  } else {
+    #stable conditions: from Beljaars & Holtslag (1991) “Flux Parameterization over Land Surfaces for Atmospheric Models”
+    psiM <- (-2/3)*(zeta - 5/0.35)*exp(-0.35*zeta) - zeta - (10/3)/0.35
+  } # if(zeta <= 0){
+  return(psiM)
+} # psiM.f <- function(zeta){
+
+# stability functions for heat, based on CLASS model (https://github.com/classmodel/modelgui/blob/master/model.cpp)
+psiH.f <- function(zeta){
+  if(zeta <= 0){
+    #unstable conditions:  from Paulson (1970) "The Mathematical Representation of Wind Speed and Temperature Profiles in the Unstable Atmospheric Surface Layer"
+    x <- (1 - 16*(zeta))^0.25
+    psiH <- 2*log((1+x^2)/2)
+  } else {
+    #stable conditions: from Beljaars & Holtslag (1991) “Flux Parameterization over Land Surfaces for Atmospheric Models”
+    psiH <- -2/3 * (zeta - 5/0.35) * exp(-0.35 * zeta) -
+      (1 + (2/3) * zeta)^1.5 - (10/3) / 0.35 + 1
+  } # if(zeta <= 0){
+  return(psiH)
+} # psiH.f <- function(zeta){
+
+clip <- function(x, xmin, xmax){
+  return(pmin(pmax(x, xmin), xmax))
+} # clip <- function(x, xmin, xmax){
+
+finite_or <- function(x, fallback){
+  if(!is.finite(x)) return(fallback)
+  return(x)
+} # finite_or <- function(x, fallback){
+
+psiM.safe <- function(zeta, zeta_min = -5, zeta_max = 2){
+  zeta <- finite_or(zeta, 0)
+  zeta <- clip(zeta, zeta_min, zeta_max)
+  return(psiM.f(zeta))
+} # psiM.safe <- function(zeta, zeta_min = -5, zeta_max = 2){
+
+psiH.safe <- function(zeta, zeta_min = -5, zeta_max = 2){
+  zeta <- finite_or(zeta, 0)
+  zeta <- clip(zeta, zeta_min, zeta_max)
+  return(psiH.f(zeta))
+} # psiH.safe <- function(zeta, zeta_min = -5, zeta_max = 2){
+
+# calculate transfer-coefficients, based on Monin-Obukhov Similarity Theory (MOST)
+most_transfer.f <- function(z0, Ur, zref, zeta, k = 0.4, Umin = 0.1, zeta_min = -5, zeta_max = 2,
+                            raero_min = 2, raero_max = 5000){
+  # roughness length for heat; from Garratt, J.R. (1978) Quart. J. Roy. Met. Soc. 104, 491-50
+  z0H <- z0 * exp(-2.5)
+  
+  # Use an effective wind speed to avoid zero-conductance singularities.
+  Ur.eff <- max(abs(Ur), Umin)
+  
+  # Ensure valid log-layer geometry.
+  zref <- max(zref, 1.05 * max(z0, z0H))
+  
+  zeta <- finite_or(zeta, 0)
+  zeta <- clip(zeta, zeta_min, zeta_max)
+  
+  # Because zeta = zref / L, roughness-level arguments are:
+  # z0 / L  = (z0 / zref)  * zeta
+  # z0H / L = (z0H / zref) * zeta
+  zeta0  <- clip((z0  / zref) * zeta, zeta_min, zeta_max)
+  zeta0H <- clip((z0H / zref) * zeta, zeta_min, zeta_max)
+  
+  denomM <- log(zref / z0) -
+    psiM.safe(zeta, zeta_min, zeta_max) +
+    psiM.safe(zeta0, zeta_min, zeta_max)
+  
+  denomH <- log(zref / z0H) -
+    psiH.safe(zeta, zeta_min, zeta_max) +
+    psiH.safe(zeta0H, zeta_min, zeta_max)
+  
+  # Prevent pathological denominator behavior.
+  denomM <- max(denomM, 1e-6)
+  denomH <- max(denomH, 1e-6)
+  
+  CD <- k^2 / denomM^2           # CD is drag coefficient for momentum
+  CH <- k^2 / (denomM * denomH)  # CH is drag coefficient for heat (also relevant for other scalars like H2O & CO2)
+  
+  ustar <- k * Ur.eff / denomM   # friction velocity [m/s]
+  
+  raero <- 1 / (CH * Ur.eff)     # aerodynamic resistance [s/m]
+  raero <- clip(raero, raero_min, raero_max)
+  
+  return(list(zeta = zeta,  zref = zref,
+              Ur.eff = Ur.eff, z0H = z0H,  
+              denomM = denomM, denomH = denomH,
+              CD = CD, CH = CH, ustar = ustar, raero = raero))
+} # most_transfer.f <- function(z0, Ur, zref, zeta, k = 0.4,
+
+# calculate surface exchange, based on Monin-Obukhov Similarity Theory (MOST)
+surface_exchange_most.f <- function(T, Ta, qa, qsat, rveg,
+                                    Ur, zref, z0, rho, Cp, Lv,
+                                    thetav, g = 9.80665,
+                                    k = 0.4, Umin = 0.1,
+                                    zeta_min = -5, zeta_max = 2,
+                                    B0_neutral = 1e-7, allow_dew = FALSE){
+  
+  # Temperature and humidity differences driving surface fluxes
+  dT <- T - Ta
+  dq <- qsat - qa
+  
+  if(!allow_dew)  dq <- max(dq, 0)
+  
+  calc_at_zeta <- function(zeta){
+
+    # use trial zeta to calculate transfer coefficients
+    tr <- most_transfer.f(
+      z0 = z0, Ur = Ur,
+      zref = zref, zeta = zeta,
+      k = k, Umin = Umin,
+      zeta_min = zeta_min, zeta_max = zeta_max)
+    
+    raero <- tr$raero
+    
+    # sensible heat flux [W/m2]
+    H <- rho * Cp * dT / raero
+    
+    # latent heat flux [W/m2]
+    LE <- Lv * rho * dq / (raero + rveg)
+    if(!allow_dew){
+      LE <- max(LE, 0)
+    } # if(!allow_dew){
+    
+    # Moisture flux in [kg/kg * m/s].
+    wq <- LE / (Lv * rho)
+    
+    # Virtual potential temperature flux approximation
+    wthetav <- H / (rho * Cp) + 0.61 * Ta * wq
+    
+    B0 <- g * wthetav / thetav   # surface buoyancy flux [m2/s3]
+    
+    if(!is.finite(B0) || abs(B0) < B0_neutral){
+      L <- Inf
+      zeta.new <- 0
+    } else {
+      L <- -tr$ustar^3 / (k * B0)
+      zeta.new <- tr$zref / L
+      zeta.new <- clip(zeta.new, zeta_min, zeta_max)
+    } # if(!is.finite(B0) || abs(B0) < B0_neutral){
+    
+    # compare assumed zeta to implied zeta
+    residual <- zeta - zeta.new
+    
+    return(list(zeta = zeta, zeta.new = zeta.new,
+      residual = residual, L = L, B0 = B0,
+      H = H, LE = LE, raero = raero,
+      ustar = tr$ustar,
+      CD = tr$CD, CH = tr$CH,
+      denomM = tr$denomM, denomH = tr$denomH))
+  } # calc_at_zeta <- function(zeta){
+  
+  neutral <- calc_at_zeta(0)
+  
+  if(abs(neutral$B0) < B0_neutral){
+    neutral$converged <- TRUE
+    neutral$method <- "neutral"
+    return(neutral)
+  } # if(abs(neutral$B0) < B0_neutral){
+  
+  # Choose a physically consistent bracket.
+  # Positive buoyancy flux -> unstable -> zeta < 0.
+  # Negative buoyancy flux -> stable   -> zeta > 0.
+  if(neutral$B0 > 0){
+    bracket <- c(zeta_min, 0)
+  } else {
+    bracket <- c(0, zeta_max)
+  } # if(neutral$B0 > 0){
+  
+  residual.f <- function(zz){
+    calc_at_zeta(zz)$residual
+  } # residual.f <- function(zz){
+  
+  f1 <- residual.f(bracket[1])
+  f2 <- residual.f(bracket[2])
+  
+  # find the stability parameter zeta that makes the MOST calculation self-consistent
+  if(is.finite(f1) && is.finite(f2) && f1 * f2 <= 0){
+    root <- uniroot(residual.f, lower = bracket[1], upper = bracket[2])
+    out <- calc_at_zeta(root$root)
+    out$converged <- TRUE
+    out$method <- "uniroot"
+  } else {
+    # Fallback: do not crash the ODE solver.
+    # Pick the zeta in the allowed range that minimizes the residual.
+    opt <- optimize(f = function(zz) abs(residual.f(zz)), interval = bracket)
+    out <- calc_at_zeta(opt$minimum)
+    out$converged <- FALSE
+    out$method <- "bounded_optimize_fallback"
+  } # if(is.finite(f1) && is.finite(f2) && f1 * f2 <= 0){
+  
+  return(out)
+} # surface_exchange_most.f <- function(T, Ta, qa, qsat, rveg,
+#################################################
+
+
 #################################################
 # function to initialize T with equilibrium value (determined through "uniroot")
+#################################################
 f <- function(T, Ta, SWdn, LWdn, albedo.cloud, albedo.surf, epsilon.s, Tsoil1, Ur,
-              zsl, z0, gvmax=gvmax, RH=RH, CO2=Cair, Psurf=1000, Hscale=8000, GHG.FORCE=GHG.FORCE){  
+              zsl, z0, gvmax=gvmax, RH=RH, qa=qa.presc, CO2=Cair, Cfree=Cfree,
+              Psurf=1000, Hscale=8000, h=hini,
+              CO2.baseline=CO2.baseline, CO2.SENSITIVITY=CO2.SENSITIVITY,
+              Wsoil1=Wsoil1, Wfc=Wfc, Wwilt=Wwilt,
+              LAI=LAI, Kb=Kb,
+              return.all=FALSE){  
+  
   # --------------Physical constants--------#
   Cp <- 1005.7; Cv <- 719 # heat capacities @ constant pressure & volume [J/kg/K] (Appendix 2 of Emanuel [1994])
   g <- 9.80665 # standard surface gravity [m/s2]
   Rd <- 287.04 # Ideal Gas Constant of DRY air [J/kg/K] (Appendix 2 of Emanuel [1994])
   Rv <- 461.40 # Ideal Gas Constant of water vapor [J/kg/K] (Appendix A.1.4 of Jacobson [1999])
   sigma <- 5.670373E-8 # Stefan-Boltzmann constant [W/m2/K4]
+  Md <- 28.97  #molar mass of dry air [g/mole]
+  k <- 0.4  # von Karman constant
   # --------------Physical constants--------#
+  
+  # calculate RH at ABLtop and near ground surface
+  # NOTE:  this mirrors the dynamic model timestep
+  e <- qa*Psurf/(Rd/Rv)      # vapor pressure [hPa]
+  RH <- e/(satvap(Ta - 273.15)/100)
+  P.h <- Psurf*exp(-h/Hscale)
+  e.h <- qa*(Rv/Rd)*P.h # vapor pressure at ABL top [hPa]
+  T.h <- Ta - (g/Cp)*h  # temperature at ABL top [K], where (g/Cp) is the adiabatic lapse rate
+  esat.h <- satvap(T.h-273.15)/100 # saturation vapor pressure at ABL top [hPa]
+  RH.h <- e.h/esat.h    # relative humidity at ABLtop
   
   if(cloudTF){
     # diagnose cloud fraction based on Eq. 3 of Slingo [1987]:  "The development and verification of a cloud prediction scheme for the ECMWF model"
     RHcrit <- 0.8
-    # initially use surface RH, but later will be using the RH at the ABLtop for the cloud scheme
-    tmp <- (RH-RHcrit)/(1-RHcrit)
+    # use RH at the ABLtop for the cloud scheme, as in the dynamic model timestep
+    tmp <- (RH.h-RHcrit)/(1-RHcrit)
     tmp[tmp<0] <- 0
     cloud <- tmp^2
     if(cloud > 1.0)cloud <- 1.0
   } else { cloud <- 0 } # if(cloudTF){
+  
   albedo <- (1-cloud)*albedo.surf + cloud*albedo.cloud
   SWup <- albedo*SWdn
-  Ta.c <- Ta - 273.15
-  e <- RH*satvap(mean(Ta.c))/100  #vapor pressure [hPa]
-  LWup <- epsilon.s*sigma*T^4
+  
+  # ave CO2 in atmospheric column, using scale height as weighting (i.e., density follows exponential decay)
+  #     NOTE: ignore the variation in CO2 within shallow residual layer (represented by updated Cabove) 
+  CO2.colave <- CO2 + (Cfree - CO2)*exp(-h/Hscale)                 
+  GHG.FORCE <- CO2.SENSITIVITY*log(CO2.colave/CO2.baseline)/log(2) # GHG forcing--from CO2 elevated above CO2.baseline
+  
+  LWup <- epsilon.s*sigma*T^4   # upward longwave radiation [W/m2]
+  LWdn.t <- LWdn
+  
   if (LWdnTF) {
     # empirical formula of downward longwave radiation based on Yang et al. (2023): https://doi.org/10.5194/acp-23-4419-2023
     epsilon.clr <- 0.532 + 0.808*((e/Ta)^(1/3))  # clear-sky emissivity
     epsilon.all <- epsilon.clr*(1-0.201*cloud^0.796) + 0.088*(cloud^1.038)*((RH*100)^0.221)  # all-sky emissivity
-    LWdn <- epsilon.all * sigma * Ta^4 
-    LWdn <- LWdn + GHG.FORCE  # add GHG forcing
+    LWdn.t <- epsilon.all * sigma * Ta^4 
+    LWdn.t <- LWdn.t + GHG.FORCE  # add GHG forcing
   } # if (LWdnTF) {
-  Rn <- SWdn - SWup + LWdn - LWup
   
-  # determine sensible heat flux
+  # determine net radiation
+  Rn <- SWdn - SWup + LWdn.t - LWup
+  
+  # determine air density near surface
   rho.surf <- Psurf*100/(Rd*T)   # surface air density [kg/m3]
-  #raero <- raero.f(Ur=Ur,zr=zr,z0=z0,rho=rho.surf)
-  # since don't have surface heat flux yet in the initialization, just set L=0 (neutral conditions) for initial value of raero
-  raero <- raero.f(z0=z0,Ur=Ur,zsl=zsl,L=Inf) 
-  H <- (Cp*rho.surf/(raero))*(T-Ta)   # [W/m2]
   
-  # determine latent heat flux
+  # determine latent heat flux variables before MOST
+  # NOTE:  LE affects buoyancy, so rveg and qsat need to be known before calling surface_exchange_most.f()
+  beta.W <- 1   # water stress parameter (dependent on soil moisture)
   Lv <- 1000*latentheat(T-273.15)  # latent heat of vaporization [J/kg]
-  esat <- satvap(T-273.15)/100 # saturation specific humidity [hPa]
-  VPD <- 100*(esat-e)          # vapor pressure deficit [Pa]
-  qsat <- (Rd/Rv)*esat/Psurf  # saturation specific humidity [g/g]
+  esat <- satvap(T-273.15)/100     # saturation vapor pressure [hPa]
+  e <- qa*Psurf/(Rd/Rv)            # vapor pressure [hPa]
+  VPD <- 100*(esat-e)              # vapor pressure deficit [Pa]
+  qsat <- (Rd/Rv)*esat/Psurf       # saturation specific humidity [g/g]
+  
   if (vegcontrolTF) {
+    
+    if (soilWTF) {
+      # Eq. (12.56) of Bonan (2019)
+      beta.W <- (Wsoil1 - Wwilt)/(Wfc - Wwilt)
+      if (Wsoil1 >= Wfc) beta.W <- 1.0
+      if (Wsoil1 <= Wwilt) beta.W <- 0
+    } # if (soilWTF)
+    
     # Ball-Berry + Farquhar coupled stomatal conductance & photosynthesis model for vegetation resistance [s/m]
-    hs <- e/esat  # fractional humidity (=1/RH) at leaf surface [.]
-    cs <- CO2     # CO2 concentration at leaf surface [umole/mole]
-    BBFout <- BBF(SW=SWdn,Tleaf.C=T-273.15,hs=hs,beta.W=1.0,cs=cs,Psurf=Psurf)  
+    hs <- e/esat  # RH at leaf surface [.]   
+    if(!is.finite(hs)) hs <- 1.0
+    if(hs<0.7) hs <- hs + 0.3   #!!! quick adjustment that ensures leaf surface is not too dry...accounts for higher humidity within canopy
+    cs <- CO2    # CO2 concentration at leaf surface [umole/mole]
+    
+    BBFout <- BBF(SW=SWdn,Tleaf.C=T-273.15,hs=hs,beta.W=beta.W,cs=cs,Psurf=Psurf)  
     gsv <- BBFout["gsv"]  # stomatal conductance with respect to water vapor [mole H2O/m2/s]  
     rho.mole <- rho.surf*1000/Md # air density [kg/m3] => molar density [moles/m3]
     gsv <- gsv/rho.mole   # [mole/m2/s] => [m/s]
-    rveg <- 1/gsv           # vegetation resistance [s/m]
+    
+    # guard against zero or negative stomatal conductance
+    gsv <- max(as.numeric(gsv), 1e-8)
+    
+    rveg <- 1/gsv         # vegetation resistance [s/m]
     An <- BBFout["An"]    # Net photosynthesis [umole/m2/s]
     ci <- BBFout["ci"]    # intercellular CO2 [umole/mole]
+    
   } else {
+    
     rveg <- 1/gvmax
-    An <- NA; ci <- NA
+    An <- NA
+    ci <- NA
+    
   } # if(vegcontrolTF){
+  
   # scale up photosynthesis and stomatal conductance to CANOPY values using Big-Leaf Model, based on Eq. (15.5) of Bonan (2019)
-  scale.canopy<-(1-exp(-Kb*LAI))/Kb
+  scale.canopy <- (1-exp(-Kb*LAI))/Kb
   An <- An*scale.canopy
-  gveg <- (1/rveg)*scale.canopy
-  rveg <- 1/gveg
-  LE <- (Lv*rho.surf/(raero + rveg))*(qsat - qa.presc) #[W/m2]
-  if(LE<0) LE <- 0
+  
+  gv <- (1/rveg)*scale.canopy
+  
+  # guard against zero or negative canopy conductance
+  gv <- max(as.numeric(gv), 1e-8)
+  rveg <- 1/gv
+  
+  # diagnose initial virtual potential temperature
+  thetavM <- Ta*(1+0.61*qa)   # virtual potential temperature [K];  Eq. 1.5.1b of Stull [1988]
+  
+  # determine sensible and latent heat fluxes using Monin-Obukhov Similarity Theory
+  # NOTE:  surface_exchange_most.f solves for raero, H, LE, ustar, L, and zeta consistently
+  MOST <- surface_exchange_most.f(
+    T = T, Ta = Ta,
+    qa = qa, qsat = qsat,
+    rveg = rveg, Ur = Ur,
+    zref = zsl, z0 = z0,
+    rho = rho.surf,
+    Cp = Cp, Lv = Lv,
+    thetav = thetavM,
+    g = g, k = k,
+    Umin = 0.1,
+    zeta_min = -5, zeta_max = 2,
+    allow_dew = FALSE)
+  
+  raero <- MOST$raero
+  H <- MOST$H
+  LE <- MOST$LE
+  ustar <- MOST$ustar
+  L <- MOST$L
+  zeta <- MOST$zeta
   
   # determine ground heat flux from two-layer (force-restore) soil model to calculate ground heat flux and soil moisture
   G <- Lambda * (T - Tsoil1)
   
   # this should =0 when T is at equilibrium value
-  return(Rn - H - LE - G)
-} # f<-function(T,Ta,SWdn,LWdn,albedo,epsilon.s){
+  imbalance <- Rn - H - LE - G
+  
+  if(return.all){
+    return(list(
+      imbalance = as.numeric(imbalance),
+      Rn = as.numeric(Rn),
+      H = as.numeric(H),
+      LE = as.numeric(LE),
+      G = as.numeric(G),
+      LWup = as.numeric(LWup),
+      LWdn = as.numeric(LWdn.t),
+      SWup = as.numeric(SWup),
+      cloud = as.numeric(cloud),
+      albedo = as.numeric(albedo),
+      RH = as.numeric(RH),
+      RH.h = as.numeric(RH.h),
+      qsat = as.numeric(qsat),
+      VPD = as.numeric(VPD),
+      rveg = as.numeric(rveg),
+      raero = as.numeric(raero),
+      beta.W = as.numeric(beta.W),
+      ustar = as.numeric(ustar),
+      L = as.numeric(L),
+      zeta = as.numeric(zeta),
+      MOST.converged = as.numeric(MOST$converged),
+      MOST.method = MOST$method))
+  } # if(return.all){
+  
+  return(imbalance)
+  
+} # f <- function(T, Ta, SWdn, LWdn, albedo.cloud, albedo.surf, epsilon.s, Tsoil1, Ur,
 
 xinterv <- Ta.c[1]+273.15+c(-50,50)  # interval over which to search for equil temperature
-# use initial radiation, temps to solve for initial equil. temperature
+
+# Reference height for MOST.
+# limit range of zsl to avoid applying surface-layer similarity too high into the ABL or too near the roughness elements
 zsl <- 0.1*hini  # surface layer height [m] assumed to be 10% of ABL height
-Tinit <- uniroot(f,interval=xinterv,Ta=Ta.c[1]+273.15,SWdn=SWdn[1],LWdn=LWdn[1],Tsoil1=Tsoil1,albedo.cloud=albedo.cloud,
-                 albedo.surf=albedo.surf,epsilon.s=epsilon.s,Ur=Ur,zsl=zsl,z0=z0,gvmax=gvmax,RH=RH,Psurf=Psurf,Hscale=Hscale,GHG.FORCE=GHG.FORCE)$root
-imbalance <- f(T=Tinit,Ta=Ta.c[1]+273.15,SWdn=SWdn[1],LWdn=LWdn[1],Tsoil1=Tsoil1,albedo.cloud=albedo.cloud,
-               albedo.surf=albedo.surf,epsilon.s=epsilon.s,Ur=Ur,zsl=zsl,z0=z0,gvmax=gvmax,RH=RH,Psurf=Psurf,Hscale=Hscale,GHG.FORCE=GHG.FORCE)
-print(paste("Tinit [oC]:",signif(Tinit-273.15,5),";   (Rn-H-LE-G) =",signif(imbalance,4),"[W/m2]"))
+zsl <- min(c(zsl, 100))
+zsl <- max(c(zsl, 1.05 * z0))
+
+# use initial radiation, temps to solve for initial equil. temperature
+Tinit <- uniroot(
+  f,  interval = xinterv,
+  Ta = Ta.c[1]+273.15,
+  SWdn = SWdn[1], LWdn = LWdn[1],
+  Tsoil1 = Tsoil1,
+  albedo.cloud = albedo.cloud,
+  albedo.surf = albedo.surf,
+  epsilon.s = epsilon.s,
+  Ur = Ur, zsl = zsl,
+  z0 = z0, gvmax = gvmax,
+  RH = RH,  qa = qa.presc,
+  CO2 = Cair,  Cfree = Cfree,
+  Psurf = Psurf,  Hscale = Hscale,
+  h = hini,
+  CO2.baseline = CO2.baseline,
+  CO2.SENSITIVITY = CO2.SENSITIVITY,
+  Wsoil1 = Wsoil1,  Wfc = Wfc,  Wwilt = Wwilt,
+  LAI = LAI,  Kb = Kb)$root
+
+init.out <- f(
+  T = Tinit,
+  Ta = Ta.c[1]+273.15,
+  SWdn = SWdn[1],  LWdn = LWdn[1],
+  Tsoil1 = Tsoil1,
+  albedo.cloud = albedo.cloud,
+  albedo.surf = albedo.surf,
+  epsilon.s = epsilon.s,
+  Ur = Ur,
+  zsl = zsl, z0 = z0,
+  gvmax = gvmax,
+  RH = RH,  qa = qa.presc,
+  CO2 = Cair,  Cfree = Cfree,
+  Psurf = Psurf,  Hscale = Hscale,
+  h = hini,
+  CO2.baseline = CO2.baseline,
+  CO2.SENSITIVITY = CO2.SENSITIVITY,
+  Wsoil1 = Wsoil1,  Wfc = Wfc,  Wwilt = Wwilt,  
+  LAI = LAI,  Kb = Kb,
+  return.all = TRUE)
+
+imbalance <- init.out$imbalance
+
+print(paste("Tinit [oC]:",signif(Tinit-273.15,5),
+            ";   (Rn-H-LE-G) =",signif(imbalance,4),"[W/m2]",
+            ";   raero =",signif(init.out$raero,4),"[s/m]",
+            ";   ustar =",signif(init.out$ustar,4),"[m/s]",
+            ";   zeta =",signif(init.out$zeta,4),
+            ";   MOST.converged =",init.out$MOST.converged))
 
 #############################################################################################################
 #--------------------------------- ODE ODE ODE ODE ODE ODE ODE ODE ODE ODE ---------------------------------#
@@ -356,13 +676,13 @@ thetavM <- thetaM*(1+0.61*qa)   # virtual potential temperature [K];  Eq. 1.5.1b
 
 zeta <- 0  #initialize zsl/L to 0 (neutral conditions)
 yini <- c(T=Tinit, Ta=Ta.c[1]+273.15, qa=qa, thetavM=thetavM,
-          Tsoil1=Tsoil1, Wsoil1=Wsoil1, h=hini, CO2=Cair, zeta=zeta) 
-names(yini) <- c("T","Ta","qa","thetavM","Tsoil1","Wsoil1","h","CO2","zeta")
+          Tsoil1=Tsoil1, Wsoil1=Wsoil1, h=hini, CO2=Cair) 
+names(yini) <- c("T","Ta","qa","thetavM","Tsoil1","Wsoil1","h","CO2")
 
 ########################################################
 # initialize parameters
 # 0. numerical parameters
-parms <- c(dt=dt,DTtol=DTtol,countTmax=countTmax)
+parms <- c(dt=dt,countTmax=countTmax)
 # 1.  flags
 parms <- c(parms,vegcontrolTF=vegcontrolTF,atmrespondTF=atmrespondTF,ABLTF=ABLTF,
            soilWTF=soilWTF,co2budgetTF=co2budgetTF,cloudTF=cloudTF,LWdnTF=LWdnTF,co2fluxprescTF=co2fluxprescTF)
@@ -404,8 +724,6 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY,ABLdepth_DAY=NULL,CO
   } # if (abs(hr - round(hr)) < 1e-8 && round(hr) > last_printed_hour) {
   
   with(as.list(c(state,parms)),{
-    zeta.old <- zeta
-    
     if (!atmrespondTF) {
       Ta <- approx(x=as.numeric(names(Ta.c_DAY))*3600,y=Ta.c_DAY,xout=time%%(24*3600))$y+273.15  #use prescribed value
       qa <- qa.presc
@@ -449,66 +767,81 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY,ABLdepth_DAY=NULL,CO
     # determine net radiation
     Rn <- SWdn.t-SWup+LWdn.t-LWup
     
+    # Reference height for MOST.
+    # limit range of zsl to avoid applying surface-layer similarity too high into the ABL or too near the roughness elements
     zsl <- 0.1*h  # surface layer height [m] assumed to be 10% of ABL height
+    zsl <- min(c(zsl, 100))
+    zsl <- max(c(zsl, 1.05 * z0))
     
-    L <- zsl/zeta
+    rho.surf <- Psurf * 100 / (Rd * T)
     
-    # determine sensible heat flux
-    rho.surf <- Psurf*100/(Rd*T)   # surface air density [kg/m3]
-    raero <- raero.f(z0=z0,Ur=Ur,zsl=zsl,L=L) 
-    H <- (Cp*rho.surf/(raero))*(T-Ta)   # [W/m2]
-    wthetav <- H/(Cp*rho.surf)     # w'thetav' [K/m/s]
-    F0buoy <- g*wthetav/thetavM     # surface buoyancy flux [m2/s3]
-    denomM <- (log(zsl/z0)-psiM.f(zsl/L)+psiM.f(z0/L))^2
-    CD <- k^2/denomM  # CD is drag coefficient for momentum; Eq. (6.11) of de Arellano (2015)
-    ustar <- sqrt(CD)*Ur # update friction velocity [m/s]
-    ustar <- max(c(0.01,ustar)) #!!! impose minimum ustar to prevent numerical instabilities 
-    if(abs(F0buoy) < 1e-6){
-      # update Obukhov length [m]
-      L <- Inf
-    } else {
-      L <- -ustar^3 / (k * F0buoy)
-    } # if(abs(F0buoy) < 1e-12){
+    # Prepare humidity quantities before solving MOST.
+    beta.W <- 1
+    Lv <- 1000 * latentheat(T - 273.15)
+    esat <- satvap(T - 273.15) / 100
+    e <- qa * Psurf / (Rd / Rv)
+    VPD <- 100 * (esat - e)
+    qsat <- (Rd / Rv) * esat / Psurf
     
-    # determine latent heat flux
-    beta.W <- 1   # water stress parameter (dependent on soil moisture)
-    Lv <- 1000*latentheat(T-273.15)  # latent heat of vaporization [J/kg]
-    esat <- satvap(T-273.15)/100     # saturation vapor pressure [hPa]
-    e <- qa*Psurf/(Rd/Rv)            # vapor pressure [hPa]
-    VPD <- 100*(esat-e)              # vapor pressure deficit [Pa]
-    qsat <- (Rd/Rv)*esat/Psurf       # saturation specific humidity [g/g]
     if (vegcontrolTF) {
+      
       if (soilWTF) {
         # Eq. (12.56) of Bonan (2019)
-        beta.W <- (Wsoil1 - Wwilt)/(Wfc - Wwilt)
+        beta.W <- (Wsoil1 - Wwilt) / (Wfc - Wwilt)   
         if (Wsoil1 >= Wfc) beta.W <- 1.0
         if (Wsoil1 <= Wwilt) beta.W <- 0
-      } # if (soilWTF)
+      } # if (soilWTF) {
+      
+      hs <- e / esat
+      if(hs < 0.7) hs <- hs + 0.3   #!!! quick adjustment that ensures leaf surface is not too dry...accounts for higher humidity within canopy
+      cs <- CO2   # CO2 concentration at leaf surface [umole/mole]
+      
       # Ball-Berry + Farquhar coupled stomatal conductance & photosynthesis model for vegetation resistance [s/m]
-      hs <- e/esat  # RH at leaf surface [.]   
-      if(hs<0.7) hs <- hs + 0.3   #!!! quick adjustment that ensures leaf surface is not too dry...accounts for higher humidity within canopy
-      cs <- CO2    # CO2 concentration at leaf surface [umole/mole]
-      BBFout <- BBF(SW=SWdn.t,Tleaf.C=T-273.15,hs=hs,beta.W=beta.W,cs=cs,Psurf=Psurf)  
-      gsv <- BBFout["gsv"]  # stomatal conductance with respect to water vapor [mole H2O/m2/s]  
-      rho.mole <- rho.surf*1000/Md # air density [kg/m3] => molar density [moles/m3]
-      gsv <- gsv/rho.mole   # [mole/m2/s] => [m/s]
-      rveg <- 1/gsv         # vegetation resistance [s/m]
-      An <- BBFout["An"]    # Net photosynthesis [umole/m2/s]
-      ci <- BBFout["ci"]    # intercellular CO2 [umole/mole]
+      BBFout <- BBF(
+        SW = SWdn.t, Tleaf.C = T - 273.15,
+        hs = hs, beta.W = beta.W,
+        cs = cs,Psurf = Psurf)
+      
+      gsv <- BBFout["gsv"]  # stomatal conductance with respect to water vapor [mole H2O/m2/s]
+      rho.mole <- rho.surf * 1000 / Md  # air density [kg/m3] => molar density [moles/m3]
+      gsv <- gsv / rho.mole # [mole/m2/s] => [m/s]
+      
+      # Guard against zero or negative stomatal conductance.
+      gsv <- max(gsv, 1e-8)
+      
+      rveg <- 1 / gsv     # vegetation resistance [s/m]
+      An <- BBFout["An"]  # Net photosynthesis [umole/m2/s]
+      ci <- BBFout["ci"]  # intercellular CO2 [umole/mole]
+      
     } else {
-      rveg <- 1/gvmax
-      An <- NA; ci <- NA
-    } # if(vegcontrolTF){
+      rveg <- 1 / gvmax
+      An <- NA
+      ci <- NA
+    } # if (vegcontrolTF) {
     
     # scale up photosynthesis and stomatal conductance to CANOPY values using Big-Leaf Model, based on Eq. (15.5) of Bonan (2019)
-    scale.canopy<-(1-exp(-Kb*LAI))/Kb
-    An <- An*scale.canopy
-    gv <- (1/rveg)*scale.canopy
-    rveg <- 1/gv
-    LE <- (Lv*rho.surf/(raero+rveg))*(qsat-qa) #[W/m2]
-    if(LE<0) LE <- 0
+    scale.canopy <- (1 - exp(-Kb * LAI)) / Kb
+    An <- An * scale.canopy
+    gv <- (1 / rveg) * scale.canopy
+    gv <- max(gv, 1e-8)
+    rveg <- 1 / gv
     
-    # determine respirational flux of CO2 to atmosphere
+    # Solve MOST diagnostically
+    MOST <- surface_exchange_most.f(
+      T = T, Ta = Ta, qa = qa, qsat = qsat,
+      rveg = rveg, Ur = Ur, zref = zsl, z0 = z0,
+      rho = rho.surf, Cp = Cp,  Lv = Lv,
+      thetav = thetavM, g = g, k = k,
+      Umin = 0.1, zeta_min = -5, zeta_max = 2)
+    
+    raero <- MOST$raero
+    H <- MOST$H
+    LE <- MOST$LE
+    ustar <- MOST$ustar
+    L <- MOST$L
+    zeta <- MOST$zeta
+    
+    # determine respiration flux of CO2 to atmosphere
     Resp <- Resp25*(Q10^((T-298.15)/10))  # respiration flux based on Q10 formulation [umole CO2/m2/s]
     
     # determine ground heat flux 
@@ -615,7 +948,6 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY,ABLdepth_DAY=NULL,CO
     DWsoil1 <- dWsoil1.dt
     Dh <- dh.dt
     DCO2 <- dC.dt
-    Dzeta <- ((zsl/L) - zeta.old)/dt
     
     #variables that aren't integrated with time and aren't returned as derivatives
     vars2 <- c(SWdn=SWdn.t,LWdn=LWdn.t,GHG.FORCE=GHG.FORCE,Rn=as.numeric(Rn),LWup=as.numeric(LWup),H=as.numeric(H),LE=as.numeric(LE),G=as.numeric(G),
@@ -623,8 +955,8 @@ LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY,ABLdepth_DAY=NULL,CO
                An=as.numeric(An),Resp=as.numeric(Resp),rveg=as.numeric(rveg),raero=as.numeric(raero),beta.W=as.numeric(beta.W),
                CO2flux.veg=as.numeric(CO2flux.veg),CO2flux.ent=as.numeric(CO2flux.ent),CO2flux.tot=as.numeric(CO2flux.tot),
                dh.dt=as.numeric(dh.dt),E=as.numeric(E),Fhq=as.numeric(Fhq),deltaq=as.numeric(deltaq),Fhthetav=as.numeric(Fhthetav),
-               ustar=as.numeric(ustar),L=as.numeric(L))
-    return(list(c(DT,DTa,Dqa,DthetavM,DTsoil1,DWsoil1,Dh,DCO2,Dzeta),vars2))
+               zeta=as.numeric(zeta),ustar=as.numeric(ustar),L=as.numeric(L))
+    return(list(c(DT,DTa,Dqa,DthetavM,DTsoil1,DWsoil1,Dh,DCO2),vars2))
   })
 } # LAIM <-function(time,state,parms,SWdn_DAY,LWdn_DAY,Ta.c_DAY,ABLdepth_DAY=NULL,CO2flux.veg_DAY=NULL) {
 
@@ -661,9 +993,7 @@ if(atmrespondTF&ABLTF&t.day>1){
         Tsoil1 = result.tmp$Tsoil1[ilast],
         Wsoil1 = result.tmp$Wsoil1[ilast],
         h = result.tmp$h[ilast],
-        CO2 = result.tmp$CO2[ilast],
-        zeta = result.tmp$zeta[ilast]
-      )
+        CO2 = result.tmp$CO2[ilast])
     } #   if (t.dd > 1) {
     
     result.tmp <- data.frame(
@@ -724,7 +1054,7 @@ legend(x="topright",c("qsat","qa"),lwd=c(3,2),lty=c(1,3))
 
 ylims <- range(result[,c("raero","rveg")])
 plot(result[,"time"]/3600,result[,"raero"],type="l",xlab="Time [hour]",ylab="Resistances [s/m]",
-     cex.axis=1.3,cex.lab=1.3,lwd=1.5,lty=3,ylim=ylims,main=xmain,col="black",log="y")
+     cex.axis=1.3,cex.lab=1.3,lwd=1.5,lty=3,ylim=ylims,main=xmain,col="black")
 lines(result[,"time"]/3600,result[,"rveg"],lty=1,lwd=3,col="black")
 legend(x="topright",c("r_veg","r_aero"),lwd=c(3,2),lty=c(1,3),col=c("black","black"))
 dev.copy(png,"T_q_r.png");dev.off();print("T_q_r.png written out")
