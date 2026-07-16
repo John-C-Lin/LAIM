@@ -181,6 +181,7 @@ Psurf <- 1000     #surface pressure [hPa]
 qa.presc <- (Rd/Rv)*e/Psurf   #prescribed specific humidity [g/g]
 Hscale <- 8000    # scale height of atmosphere--i.e., height at which Psurf decays to (1/e) [m]
 hmin <- 200       # minimum height of atmospheric boundary layer [m]
+if(!atmrespondTF)hmin <- 1000    # ABL ht matters implicitly even if atmrespondTF=FALSE, since it affects stability calculations.  Set to daytime value
 thetavM0<-(Ta.c[1]+273.15)*(1+0.61*qa.presc) # initial virtual potential temperature [K]; Eq. 1.5.1b of Stull [1988]
 Beta <- 0.2       # closure hypothesis:  fraction of surface virtual potential temperature flux that determines entrainment heat flux
 gamma <- 5/1000   # slope of thetav above growing ABL [K/m]
