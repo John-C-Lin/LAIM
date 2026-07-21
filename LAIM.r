@@ -26,7 +26,6 @@ dt <- 60           # model timestep [s]
 t.day <- 3         # run time in days
 tmax <- t.day*24*3600  #maximum time [s]
 times <- seq(0,tmax,dt) #vector of time steps [s]
-countTmax <- 1000  # max number of times to iterate T calculation
 #################################################
 
 #################################################
@@ -683,7 +682,7 @@ names(yini) <- c("T","Ta","qa","thetavM","Tsoil1","Wsoil1","h","CO2")
 ########################################################
 # initialize parameters
 # 0. numerical parameters
-parms <- c(dt=dt,countTmax=countTmax)
+parms <- c(dt=dt)
 # 1.  flags
 parms <- c(parms,vegcontrolTF=vegcontrolTF,atmrespondTF=atmrespondTF,ABLTF=ABLTF,
            soilWTF=soilWTF,co2budgetTF=co2budgetTF,cloudTF=cloudTF,LWdnTF=LWdnTF,co2fluxprescTF=co2fluxprescTF)
