@@ -174,10 +174,10 @@ Ta.c[1:length(Ta.c)] <- 5    # override with CONSTANT air temperature [deg-C]
 Ta.c_DAY <- Ta.c
 
 # specific humidity of air:  determine from RH, air temperature
-RH <- 0.9
-e <- RH*satvap(mean(Ta.c))/100  #vapor pressure [hPa]
-Psurf <- 1000     #surface pressure [hPa] 
-qa.presc <- (Rd/Rv)*e/Psurf   #prescribed specific humidity [g/g]
+RH <- 0.9         # fractional relative humidity [.]
+e <- RH*satvap(mean(Ta.c))/100  # vapor pressure [hPa]
+Psurf <- 1000     #  pressure [hPa] 
+qa.presc <- (Rd/Rv)*e/Psurf   # prescribed specific humidity [g/g]
 Hscale <- 8000    # scale height of atmosphere--i.e., height at which Psurf decays to (1/e) [m]
 hmin <- 200       # minimum height of atmospheric boundary layer [m]
 if(!atmrespondTF)hmin <- 1000    # ABL ht matters implicitly even if atmrespondTF=FALSE, since it affects stability calculations.  Set to daytime value
